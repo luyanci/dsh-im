@@ -250,7 +250,10 @@ export function normalizeTelegramCallback(update, { botId } = {}) {
     || !Number.isSafeInteger(providerMessageId)) return null;
   if (!['private', 'group', 'supergroup'].includes(message.chat?.type)) return null;
   const direct = message.chat.type === 'private';
-  const messageThreadId = Number.isSafeInteger(message.message_thread_id)
+  // Same rule as normalizeTelegramUpdate: a plain supergroup's reply threads
+  // are not topics, so a button press must land in the chat-level session.
+  const messageThreadId = message.chat?.is_forum === true
+    && Number.isSafeInteger(message.message_thread_id)
     ? message.message_thread_id : undefined;
   const conversationId = messageThreadId === undefined
     ? String(chatId) : `${chatId}:${messageThreadId}`;
@@ -371,7 +374,11 @@ export function normalizeTelegramUpdate(update, {
     senderId: String(senderId),
     tagged,
   });
-  const messageThreadId = Number.isSafeInteger(message.message_thread_id)
+  // Only a forum uses message_thread_id as a topic key. In a plain supergroup
+  // Telegram also sets it on replies (the thread root is the replied message),
+  // which used to split one chat into a new session per replied-to message.
+  const messageThreadId = message.chat?.is_forum === true
+    && Number.isSafeInteger(message.message_thread_id)
     ? message.message_thread_id : undefined;
   const image = telegramImageSource(message, loadFile);
   const file = telegramFileSource(message, loadFileStream);
