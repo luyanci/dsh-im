@@ -30,4 +30,6 @@ export default {
     'This Telegram bot already has a Webhook configured. Remove the Webhook from the original service and try again.',
   'Telegram机器人': 'Telegram Bot',
   ' Bot API 长轮询': ' Bot API long polling',
+  '匿名群管理员': 'Anonymous group admin',
+  '频道': 'Channel',
 };
