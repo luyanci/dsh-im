@@ -113,6 +113,8 @@ function fileSize(value) {
 
 // Telegram's pseudo-sender for an admin who posts anonymously in a group.
 const GROUP_ANONYMOUS_SENDER_ID = 1087968824;
+// Telegram's pseudo-sender for a post that the linked channel forwards in.
+const CHANNEL_SENDER_ID = 136817688;
 
 function photoScore(photo) {
   return fileSize(photo?.file_size) ?? ((Number(photo?.width) || 0) * (Number(photo?.height) || 0));
@@ -392,6 +394,9 @@ export function normalizeTelegramUpdate(update, {
   // posts anonymously. It is marked is_bot, which used to get the whole message
   // dropped as "another bot talking".
   const anonymousSender = message.from?.id === GROUP_ANONYMOUS_SENDER_ID;
+  // A post forwarded in from the linked channel is marked is_bot too, but it is
+  // the group's own channel speaking, not some other bot in the room.
+  const channelSender = message.from?.id === CHANNEL_SENDER_ID;
   // A reply to the bot or an @username mention is the legacy "tagged" signal;
   // the per-group rule decides whether it is enough (or unnecessary).
   const tagged = String(message.reply_to_message?.from?.id ?? '') === String(botId)
@@ -428,18 +433,20 @@ export function normalizeTelegramUpdate(update, {
   );
   return {
     messageId: String(update.update_id),
-    senderId: String(senderId),
+    senderId: String(channelSender ? message.sender_chat?.id ?? senderId : senderId),
     contextSource: () => ({
       senderName: anonymousSender
         ? t('匿名群管理员')
-        : [message.from?.first_name, message.from?.last_name]
+        : channelSender
+          ? `${t('频道')}：${message.sender_chat?.title ?? message.from?.first_name ?? ''}`
+          : [message.from?.first_name, message.from?.last_name]
           .filter((value) => typeof value === 'string' && value.trim())
           .map((value) => value.trim()).join(' ') || message.from?.username,
       conversationTitle: direct ? undefined : message.chat?.title,
       chatId: String(chatId),
       threadId: messageThreadId === undefined ? undefined : String(messageThreadId),
     }),
-    senderIsBot: message.from?.is_bot === true && !anonymousSender,
+    senderIsBot: message.from?.is_bot === true && !anonymousSender && !channelSender,
     kind: direct ? 'direct' : 'group',
     conversationId,
     content: withoutBotMention(message.text ?? message.caption ?? '', username),
