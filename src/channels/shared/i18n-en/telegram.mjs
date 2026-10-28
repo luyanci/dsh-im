@@ -35,4 +35,5 @@ export default {
   '转发自': 'Forwarded from',
   '隐藏账号': 'hidden account',
   ' · 署名 ': ' by ',
+  '贴纸': 'Sticker',
 };

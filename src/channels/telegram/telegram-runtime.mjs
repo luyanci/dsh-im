@@ -186,6 +186,27 @@ function withForwardPrefix(text, message) {
   return origin ? `[${t('转发自')} ${origin}] ${text}` : text;
 }
 
+/**
+ * Stickers carry no text, so without this a sticker reply reached the model as a
+ * completely empty message. Animated and video stickers are WebM/Lottie, which
+ * the image pipeline cannot decode, so use Telegram's still thumbnail for them.
+ */
+function telegramStickerSource(message, loadFile) {
+  const sticker = message?.sticker;
+  if (!sticker) return null;
+  const animated = sticker.is_animated === true || sticker.is_video === true;
+  const thumbnail = sticker.thumbnail ?? sticker.thumb;
+  const file = animated && typeof thumbnail?.file_id === 'string' ? thumbnail : sticker;
+  if (typeof file?.file_id !== 'string' || !file.file_id) return null;
+  const unique = sticker.file_unique_id ?? file.file_id;
+  return {
+    name: `${unique}.webp`,
+    mediaType: 'image/webp',
+    size: fileSize(file.file_size),
+    load: (options) => loadFile(file.file_id, options),
+  };
+}
+
 function photoScore(photo) {
   return fileSize(photo?.file_size) ?? ((Number(photo?.width) || 0) * (Number(photo?.height) || 0));
 }
@@ -490,6 +511,7 @@ export function normalizeTelegramUpdate(update, {
   const messageThreadId = (direct || message.chat?.is_forum === true)
     ? replyThreadId : undefined;
   const image = telegramImageSource(message, loadFile);
+  const sticker = telegramStickerSource(message, loadFile);
   const file = telegramFileSource(message, loadFileStream);
   // Voice notes carry no text; a speech service later fills `content` in.
   const voice = telegramVoiceSource(message);
@@ -532,11 +554,13 @@ export function normalizeTelegramUpdate(update, {
     kind: direct ? 'direct' : 'group',
     conversationId,
     content: withForwardPrefix(
-      withoutBotMention(message.text ?? message.caption ?? '', username),
+      withoutBotMention(message.text ?? message.caption ?? '', username)
+        || (sticker && message.sticker?.emoji ? `[${t('贴纸')} ${message.sticker.emoji}]` : '')
+        || (sticker ? `[${t('贴纸')}]` : ''),
       message,
     ),
     plainText: typeof message.text === 'string',
-    images: image ? [image] : [],
+    images: [image, sticker].filter(Boolean),
     files: file ? [file] : [],
     ...(voice ? { voice } : {}),
     ...(replyTo ? { replyTo } : {}),
