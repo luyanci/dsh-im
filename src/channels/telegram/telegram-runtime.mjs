@@ -50,6 +50,14 @@ export const TELEGRAM_COMMAND_MENU = Object.freeze(
   commandMenuEntries(SHARED_COMMAND_CATALOG, (text) => text).map((item) => Object.freeze(item)),
 );
 
+/** True when the message carries an origin it was forwarded from. */
+function isForwardedMessage(message) {
+  return Boolean(message?.forward_origin)
+    || Boolean(message?.forward_from)
+    || Boolean(message?.forward_from_chat)
+    || (typeof message?.forward_sender_name === 'string' && message.forward_sender_name.trim() !== '');
+}
+
 function mentionedUsername(message, username) {
   if (!username) return false;
   return [
@@ -461,8 +469,12 @@ export function normalizeTelegramUpdate(update, {
   const channelSender = message.from?.id === CHANNEL_SENDER_ID;
   // A reply to the bot or an @username mention is the legacy "tagged" signal;
   // the per-group rule decides whether it is enough (or unnecessary).
+  // A forwarded message keeps the original text and entities, so an @username in
+  // it was aimed at that original conversation, not at this one. Only an actual
+  // reply to the bot counts as addressing us when the message is a forward.
+  const forwarded = isForwardedMessage(message);
   const tagged = String(message.reply_to_message?.from?.id ?? '') === String(botId)
-    || mentionedUsername(message, username);
+    || (!forwarded && mentionedUsername(message, username));
   const addressed = direct || groupTriggerAddressed(groupTriggers, {
     chatId: String(chatId),
     senderId: String(senderId),
