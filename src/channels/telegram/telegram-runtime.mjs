@@ -125,6 +125,59 @@ function withSignature(name, signature) {
   return trimmed ? `${name} · ${trimmed}` : name;
 }
 
+/**
+ * Describe where a forwarded message came from. Telegram hides the account for
+ * `hidden_user` origins, so only the display name survives.
+ */
+function telegramForwardOriginLabel(message) {
+  const describeUser = (user) => {
+    if (!user) return null;
+    const name = [user.first_name, user.last_name]
+      .filter((value) => typeof value === 'string' && value.trim())
+      .map((value) => value.trim()).join(' ');
+    const handle = typeof user.username === 'string' && user.username ? `(@${user.username})` : '';
+    return name ? `${name}${handle}` : (handle || null);
+  };
+  const describeChat = (chat, signature) => {
+    if (!chat) return null;
+    const title = typeof chat.title === 'string' && chat.title ? chat.title : chat.username
+      ? `@${chat.username}` : null;
+    if (!title) return null;
+    const handle = typeof chat.username === 'string' && chat.username ? `(@${chat.username})` : '';
+    const signed = typeof signature === 'string' && signature.trim()
+      ? `${t(' · 署名 ')}${signature.trim()}` : '';
+    return `${title}${handle}${signed}`;
+  };
+
+  const origin = message?.forward_origin;
+  if (origin) {
+    if (origin.type === 'user') return describeUser(origin.sender_user);
+    if (origin.type === 'hidden_user') {
+      const name = typeof origin.sender_user_name === 'string' ? origin.sender_user_name.trim() : '';
+      return name ? `${name}（${t('隐藏账号')}）` : t('隐藏账号');
+    }
+    if (origin.type === 'channel') return describeChat(origin.chat, origin.author_signature);
+    if (origin.type === 'chat') return describeChat(origin.sender_chat, origin.author_signature);
+  }
+  // Legacy fields, still present on older messages.
+  if (message?.forward_from_chat) return describeChat(message.forward_from_chat, message.forward_signature);
+  const legacyUser = describeUser(message?.forward_from);
+  if (legacyUser) return legacyUser;
+  if (typeof message?.forward_sender_name === 'string' && message.forward_sender_name.trim()) {
+    return `${message.forward_sender_name.trim()}（${t('隐藏账号')}）`;
+  }
+  return null;
+}
+
+/**
+ * Mark a forwarded message so the model can tell it from the sender's own words.
+ */
+function withForwardPrefix(text, message) {
+  if (typeof text !== 'string' || !text) return text;
+  const origin = telegramForwardOriginLabel(message);
+  return origin ? `[${t('转发自')} ${origin}] ${text}` : text;
+}
+
 function photoScore(photo) {
   return fileSize(photo?.file_size) ?? ((Number(photo?.width) || 0) * (Number(photo?.height) || 0));
 }
@@ -466,7 +519,10 @@ export function normalizeTelegramUpdate(update, {
     senderIsBot: message.from?.is_bot === true && !anonymousSender && !channelSender,
     kind: direct ? 'direct' : 'group',
     conversationId,
-    content: withoutBotMention(message.text ?? message.caption ?? '', username),
+    content: withForwardPrefix(
+      withoutBotMention(message.text ?? message.caption ?? '', username),
+      message,
+    ),
     plainText: typeof message.text === 'string',
     images: image ? [image] : [],
     files: file ? [file] : [],

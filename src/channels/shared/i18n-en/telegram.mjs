@@ -32,4 +32,7 @@ export default {
   ' Bot API 长轮询': ' Bot API long polling',
   '匿名群管理员': 'Anonymous group admin',
   '频道': 'Channel',
+  '转发自': 'Forwarded from',
+  '隐藏账号': 'hidden account',
+  ' · 署名 ': ' by ',
 };
