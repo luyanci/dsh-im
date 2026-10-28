@@ -141,6 +141,26 @@ function telegramImageSource(message, loadFile) {
   };
 }
 
+/**
+ * Fold one album member into the message that represents the whole album.
+ * Telegram sends a media group as one message per item, so the caption (and the
+ * mention) only exists on one of them; the rest look unaddressed on their own.
+ */
+export function mergeAlbumMessage(base, extra) {
+  if (Array.isArray(extra.images) && extra.images.length > 0) {
+    base.images = [...(Array.isArray(base.images) ? base.images : []), ...extra.images];
+  }
+  if (Array.isArray(extra.files) && extra.files.length > 0) {
+    base.files = [...(Array.isArray(base.files) ? base.files : []), ...extra.files];
+  }
+  const baseText = typeof base.content === 'string' ? base.content : '';
+  const extraText = typeof extra.content === 'string' ? extra.content : '';
+  if (extraText && !baseText) base.content = extraText;
+  else if (extraText && extraText !== baseText) base.content = `${baseText}\n${extraText}`;
+  if (extra.addressed === true) base.addressed = true;
+  return base;
+}
+
 function telegramFileSource(message, loadFile) {
   const file = message?.document;
   if (!file || imageTypeForDocument(file)
@@ -1834,12 +1854,28 @@ export class TelegramRuntime {
               : chatType === 'group' || chatType === 'supergroup' ? 'group' : null),
         };
       });
+      // A media group arrives as one message per item and only the item that
+      // carries the caption/mention passes the addressed gate, so buffer the
+      // batch and dispatch the album once, as a single message.
+      let album = null;
+      const flushAlbum = async () => {
+        if (!album) return;
+        const { key: _key, lastUpdateId, ...pending } = album;
+        album = null;
+        await this.#dispatchUpdate(
+          pending.update, pending.message, pending.contextSnapshot, signal,
+        );
+        cursor = lastUpdateId + 1;
+        await this.#state.setCursor(cursor);
+      };
       for (const { update, contextSnapshot } of received) {
         if (signal.aborted) return;
         const callback = normalizeTelegramCallback(update, {
           botId: this.#config.platformId,
         });
         if (callback) {
+          await flushAlbum();
+          if (signal.aborted) return;
           if (typeof this.#bridge.acceptCallback === 'function') {
             void this.#bridge.acceptCallback(callback, { contextSnapshot }).catch((error) => {
               if (signal.aborted) return;
@@ -1861,7 +1897,29 @@ export class TelegramRuntime {
           loadFileStream: (fileId, options) => this.#api.downloadFileStream({ fileId, ...options }),
           loadReplyContent: (reference, options) => this.#loadReplyContent(reference, options),
         });
+        const mediaGroupId = update?.message?.media_group_id;
+        const albumKey = typeof mediaGroupId === 'string' && mediaGroupId
+          ? `${update?.message?.chat?.id}:${mediaGroupId}` : null;
         if (message) {
+          if (albumKey && album && album.key === albumKey) {
+            mergeAlbumMessage(album.message, message);
+            album.lastUpdateId = update.update_id;
+            continue;
+          }
+          if (album) {
+            await flushAlbum();
+            if (signal.aborted) return;
+          }
+          if (albumKey) {
+            album = {
+              key: albumKey,
+              update,
+              message,
+              contextSnapshot,
+              lastUpdateId: update.update_id,
+            };
+            continue;
+          }
           // The queued record is written before the caller persists the cursor,
           // so a restart replays preparation instead of losing the update.
           await this.#dispatchUpdate(update, message, contextSnapshot, signal);
@@ -1869,6 +1927,7 @@ export class TelegramRuntime {
         cursor = update.update_id + 1;
         await this.#state.setCursor(cursor);
       }
+      await flushAlbum();
     }
   }
 
