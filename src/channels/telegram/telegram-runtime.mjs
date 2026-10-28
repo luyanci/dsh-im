@@ -116,6 +116,15 @@ const GROUP_ANONYMOUS_SENDER_ID = 1087968824;
 // Telegram's pseudo-sender for a post that the linked channel forwards in.
 const CHANNEL_SENDER_ID = 136817688;
 
+/**
+ * Append the Telegram author signature (a custom title for anonymous admins,
+ * a post signature for channels) to a display name when one is present.
+ */
+function withSignature(name, signature) {
+  const trimmed = typeof signature === 'string' ? signature.trim() : '';
+  return trimmed ? `${name} · ${trimmed}` : name;
+}
+
 function photoScore(photo) {
   return fileSize(photo?.file_size) ?? ((Number(photo?.width) || 0) * (Number(photo?.height) || 0));
 }
@@ -275,9 +284,9 @@ export function normalizeTelegramCallback(update, { botId } = {}) {
     || !Number.isSafeInteger(providerMessageId)) return null;
   if (!['private', 'group', 'supergroup'].includes(message.chat?.type)) return null;
   const direct = message.chat.type === 'private';
-  // Same rule as normalizeTelegramUpdate: a plain supergroup's reply threads
-  // are not topics, so a button press must land in the chat-level session.
-  const messageThreadId = message.chat?.is_forum === true
+  // Same rule as normalizeTelegramUpdate: outside a forum, a supergroup's reply
+  // threads are not topics, so a button press lands in the chat-level session.
+  const messageThreadId = (direct || message.chat?.is_forum === true)
     && Number.isSafeInteger(message.message_thread_id)
     ? message.message_thread_id : undefined;
   const conversationId = messageThreadId === undefined
@@ -409,9 +418,12 @@ export function normalizeTelegramUpdate(update, {
   // Only a forum uses message_thread_id as a topic key. In a plain supergroup
   // Telegram also sets it on replies (the thread root is the replied message),
   // which used to split one chat into a new session per replied-to message.
-  const messageThreadId = message.chat?.is_forum === true
-    && Number.isSafeInteger(message.message_thread_id)
+  // Echoing the thread id keeps our reply inside the same reply chain, but only
+  // a forum (or a direct chat) may key a conversation on it.
+  const replyThreadId = Number.isSafeInteger(message.message_thread_id)
     ? message.message_thread_id : undefined;
+  const messageThreadId = (direct || message.chat?.is_forum === true)
+    ? replyThreadId : undefined;
   const image = telegramImageSource(message, loadFile);
   const file = telegramFileSource(message, loadFileStream);
   // Voice notes carry no text; a speech service later fills `content` in.
@@ -436,9 +448,14 @@ export function normalizeTelegramUpdate(update, {
     senderId: String(channelSender ? message.sender_chat?.id ?? senderId : senderId),
     contextSource: () => ({
       senderName: anonymousSender
-        ? t('匿名群管理员')
+        // author_signature carries the anonymous admin's custom title, so it is
+        // the only hint at who is speaking; the user id stays hidden.
+        ? withSignature(t('匿名群管理员'), message.author_signature)
         : channelSender
-          ? `${t('频道')}：${message.sender_chat?.title ?? message.from?.first_name ?? ''}`
+          ? withSignature(
+            `${t('频道')}：${message.sender_chat?.title ?? message.from?.first_name ?? ''}`,
+            message.author_signature,
+          )
           : [message.from?.first_name, message.from?.last_name]
           .filter((value) => typeof value === 'string' && value.trim())
           .map((value) => value.trim()).join(' ') || message.from?.username,
@@ -461,9 +478,9 @@ export function normalizeTelegramUpdate(update, {
       chatId,
       chatType: message.chat.type,
       replyToMessageId: messageId,
-      messageThreadId,
+      messageThreadId: replyThreadId,
     },
-    connectionTestTarget: { chatId, messageThreadId },
+    connectionTestTarget: { chatId, messageThreadId: replyThreadId },
   };
 }
 

@@ -1100,7 +1100,7 @@ test('Telegram normalizes private messages and requires an explicit group addres
     message: {
       message_id: 6,
       message_thread_id: 100,
-      chat: { id: -1001, type: 'supergroup' },
+      chat: { id: -1001, type: 'supergroup', is_forum: true },
       from: { id: 43, is_bot: false },
       text: '@HarnessBot first topic',
       entities: [{ type: 'mention', offset: 0, length: 11 }],
@@ -1111,7 +1111,7 @@ test('Telegram normalizes private messages and requires an explicit group addres
     message: {
       message_id: 7,
       message_thread_id: 200,
-      chat: { id: -1001, type: 'supergroup' },
+      chat: { id: -1001, type: 'supergroup', is_forum: true },
       from: { id: 43, is_bot: false },
       text: '@HarnessBot second topic',
       entities: [{ type: 'mention', offset: 0, length: 11 }],

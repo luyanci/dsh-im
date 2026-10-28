@@ -315,7 +315,7 @@ test('Telegram callback normalization keeps topic threads apart', () => {
       message: {
         message_id: 701,
         message_thread_id: 55,
-        chat: { id: 42, type: 'supergroup' },
+        chat: { id: 42, type: 'supergroup', is_forum: true },
       },
       data: 'q|abcd1234|0|0',
     },
