@@ -993,6 +993,17 @@ export class TelegramBotClient {
     });
   }
 
+  /** Same arguments as sendImage, but delivered as one album message. */
+  sendImageGroup(target, files) {
+    return this.#api.sendPhotoAlbum({
+      chatId: target.chatId,
+      files,
+      replyToMessageId: target.replyToMessageId,
+      messageThreadId: target.messageThreadId,
+      signal: this.#signal,
+    });
+  }
+
   async #sendPlain(target, text) {
     const chunks = splitTelegramRegularText(text);
     const providerMessageIds = [];

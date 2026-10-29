@@ -72,6 +72,7 @@ export async function deliverOutboundArtifacts({
   signal,
   sendFile,
   sendImage,
+  sendImageGroup,
   sendFailureNotice,
   onFailure,
   logger,
@@ -84,9 +85,50 @@ export async function deliverOutboundArtifacts({
 
   let artifactIndex = 0;
   try {
+    const isImageArtifact = (candidate) => typeof candidate?.mediaType === 'string'
+      && candidate.mediaType.startsWith('image/');
+
     while (artifactIndex < artifacts.length) {
       const artifact = artifacts[artifactIndex];
       artifactIndex += 1;
+
+      // Consecutive images go out as one album: Telegram shows them as a single
+      // grouped message instead of a wall of separate photos.
+      if (typeof sendImageGroup === 'function' && isImageArtifact(artifact)) {
+        const peers = [];
+        while (peers.length < 9 && artifactIndex < artifacts.length
+          && isImageArtifact(artifacts[artifactIndex])) {
+          peers.push(artifacts[artifactIndex]);
+          artifactIndex += 1;
+        }
+        if (peers.length > 0) {
+          const batch = [artifact, ...peers];
+          try {
+            signal?.throwIfAborted();
+            const files = [];
+            for (const entry of batch) {
+              files.push(await materializeOutboundArtifact(entry, { signal }));
+            }
+            signal?.throwIfAborted();
+            const result = await sendImageGroup(files);
+            signal?.throwIfAborted();
+            receipts.push(createDeliveryReceipt({
+              deliveryId: files[0].deliveryKey,
+              presentation: `${channelKey}-image-group`,
+              providerMessageIds: providerIds(result),
+              artifacts: files.map((file) => ({ artifactId: file.artifactId, outcome: 'sent' })),
+            }));
+            artifactsSent += batch.length;
+            userVisible = true;
+            continue;
+          } catch (error) {
+            if (isAbort(error, signal)) throw error;
+            // Fall back to single sends so one bad photo cannot sink the batch.
+            artifactIndex -= peers.length;
+          }
+        }
+      }
+
       try {
         signal?.throwIfAborted();
         const file = await materializeOutboundArtifact(artifact, { signal });

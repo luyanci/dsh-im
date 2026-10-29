@@ -422,6 +422,66 @@ export class TelegramApi {
     });
   }
 
+  /**
+   * Send 2..10 images as one album.
+   *
+   * Telegram takes the media list through a JSON field and the bytes through
+   * attach:// references, so every part has to share one multipart body.
+   */
+  async sendPhotoAlbum({ chatId, files, replyToMessageId, messageThreadId, signal }) {
+    if (!Array.isArray(files) || files.length < 2 || files.length > 10) {
+      throw new TypeError('A Telegram album needs 2 to 10 photos');
+    }
+    for (const file of files) {
+      if (!file || typeof file.fileName !== 'string' || !file.fileName
+        || !Buffer.isBuffer(file.bytes)) {
+        throw new TypeError('Every Telegram album photo must carry bytes and a file name');
+      }
+    }
+    if (signal?.aborted) throw abortReason(signal);
+    const dispatch = async () => {
+      const uploadSignal = requestSignal(signal, this.#fileUploadTimeoutMs);
+      const payload = new this.#FormDataImpl();
+      payload.append('chat_id', String(chatId));
+      const media = files.map((file, index) => ({
+        type: 'photo',
+        media: `attach://photo${index}`,
+      }));
+      payload.append('media', JSON.stringify(media));
+      files.forEach((file, index) => {
+        payload.append(
+          `photo${index}`,
+          new Blob([file.bytes], { type: file.mediaType ?? 'application/octet-stream' }),
+          file.fileName,
+        );
+      });
+      if (replyToMessageId) {
+        payload.append('reply_parameters', JSON.stringify({
+          message_id: replyToMessageId,
+          allow_sending_without_reply: true,
+        }));
+      }
+      if (messageThreadId) payload.append('message_thread_id', String(messageThreadId));
+      try {
+        return await this.#call('sendMediaGroup', payload, {
+          signal: uploadSignal,
+          timeoutMs: this.#fileUploadTimeoutMs,
+          multipart: true,
+        });
+      } catch (error) {
+        if (signal?.aborted) throw abortReason(signal);
+        if (error?.deliveryOutcome === 'unknown') {
+          throw uncertainTelegramDelivery(error?.cause ?? error, 'photo album');
+        }
+        if (error?.code?.startsWith?.('telegram-')) {
+          throw telegramArtifactProviderError(error, 'photo album');
+        }
+        throw uncertainTelegramDelivery(error, 'photo album');
+      }
+    };
+    return this.#sendMessageCall('sendMediaGroup', { chat_id: chatId }, { signal }, dispatch);
+  }
+
   async #sendArtifact(method, fieldName, mediaLabel, {
     chatId,
     file,

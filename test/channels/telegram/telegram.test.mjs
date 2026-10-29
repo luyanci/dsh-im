@@ -480,6 +480,60 @@ test('Telegram API uploads a result image as a native photo in the same topic an
   assert.equal(Buffer.from(await photo.arrayBuffer()).toString(), 'telegram-image');
 });
 
+test('Telegram API uploads several photos as one media group', async () => {
+  let request;
+  const api = new TelegramApi({
+    token: TOKEN,
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return jsonResponse({ ok: true, result: [{ message_id: 910 }, { message_id: 911 }] });
+    },
+  });
+  const result = await api.sendPhotoAlbum({
+    chatId: -100123,
+    replyToMessageId: 44,
+    messageThreadId: 55,
+    files: [
+      { fileName: 'a.png', mediaType: 'image/png', bytes: Buffer.from('first') },
+      { fileName: 'b.png', mediaType: 'image/png', bytes: Buffer.from('second') },
+    ],
+  });
+
+  assert.equal(result.length, 2);
+  assert.match(request.url.pathname, /sendMediaGroup$/);
+  assert.ok(request.options.body instanceof FormData);
+  assert.equal(request.options.body.get('chat_id'), '-100123');
+  assert.equal(request.options.body.get('message_thread_id'), '55');
+  assert.deepEqual(JSON.parse(request.options.body.get('reply_parameters')), {
+    message_id: 44,
+    allow_sending_without_reply: true,
+  });
+  assert.deepEqual(JSON.parse(request.options.body.get('media')), [
+    { type: 'photo', media: 'attach://photo0' },
+    { type: 'photo', media: 'attach://photo1' },
+  ]);
+  const first = request.options.body.get('photo0');
+  const second = request.options.body.get('photo1');
+  assert.equal(first.name, 'a.png');
+  assert.equal(Buffer.from(await first.arrayBuffer()).toString(), 'first');
+  assert.equal(second.name, 'b.png');
+  assert.equal(Buffer.from(await second.arrayBuffer()).toString(), 'second');
+});
+
+test('Telegram API refuses an album with a single photo', async () => {
+  const api = new TelegramApi({
+    token: TOKEN,
+    fetchImpl: async () => jsonResponse({ ok: true, result: [] }),
+  });
+  await assert.rejects(
+    () => api.sendPhotoAlbum({
+      chatId: -100123,
+      files: [{ fileName: 'a.png', mediaType: 'image/png', bytes: Buffer.from('x') }],
+    }),
+    /2 to 10 photos/u,
+  );
+});
+
 test('Telegram bot client routes images through sendPhoto with the existing reply context', async () => {
   let request;
   const controller = new AbortController();
