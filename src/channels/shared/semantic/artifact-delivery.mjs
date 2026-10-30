@@ -36,8 +36,23 @@ function providerIds(value) {
 async function sendMaterializedArtifact(file, {
   sendFile,
   sendImage,
+  sendSticker,
   signal,
 }) {
+  // A .webp is a sticker for Telegram; sending it as a photo would look like a
+  // rectangle picture instead of the sticker the user meant.
+  if (file.mediaType === 'image/webp' && typeof sendSticker === 'function') {
+    try {
+      return {
+        presentation: 'sticker',
+        result: await sendSticker(file),
+      };
+    } catch (error) {
+      if (isAbort(error, signal) || error?.code === 'artifact-delivery-uncertain') {
+        throw error;
+      }
+    }
+  }
   if (file.mediaType?.startsWith('image/') && typeof sendImage === 'function') {
     try {
       return {
@@ -73,6 +88,7 @@ export async function deliverOutboundArtifacts({
   sendFile,
   sendImage,
   sendImageGroup,
+  sendSticker,
   sendFailureNotice,
   onFailure,
   logger,
@@ -85,8 +101,10 @@ export async function deliverOutboundArtifacts({
 
   let artifactIndex = 0;
   try {
+    // Stickers are single messages, so they never join an album.
     const isImageArtifact = (candidate) => typeof candidate?.mediaType === 'string'
-      && candidate.mediaType.startsWith('image/');
+      && candidate.mediaType.startsWith('image/')
+      && !(candidate.mediaType === 'image/webp' && typeof sendSticker === 'function');
 
     while (artifactIndex < artifacts.length) {
       const artifact = artifacts[artifactIndex];
@@ -136,6 +154,7 @@ export async function deliverOutboundArtifacts({
         const sent = await sendMaterializedArtifact(file, {
           sendFile,
           sendImage,
+          sendSticker,
           signal,
         });
         signal?.throwIfAborted();

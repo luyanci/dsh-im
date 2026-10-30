@@ -178,3 +178,69 @@ test('eleven images are split into ten plus a single', async (t) => {
   assert.deepEqual(groups, [10]);
   assert.deepEqual(singles, ['p10.png']);
 });
+
+test('a webp goes out as a real sticker, not a photo', async (t) => {
+  const stickers = [];
+  const singles = [];
+  await deliverOutboundArtifacts({
+    artifacts: [await committedArtifact(t, 'a.webp', IMAGE)],
+    deliveryId: 'reply-6',
+    channelKey: 'telegram',
+    sendImage: async (file) => {
+      singles.push(file.fileName);
+      return ['photo'];
+    },
+    sendSticker: async (file) => {
+      stickers.push(file.fileName);
+      return ['sticker'];
+    },
+    sendFile: async () => ['file'],
+  });
+  assert.deepEqual(stickers, ['a.webp']);
+  assert.deepEqual(singles, []);
+});
+
+test('a rejected sticker falls back to sending the image', async (t) => {
+  const singles = [];
+  await deliverOutboundArtifacts({
+    artifacts: [await committedArtifact(t, 'a.webp', IMAGE)],
+    deliveryId: 'reply-7',
+    channelKey: 'telegram',
+    sendImage: async (file) => {
+      singles.push(file.fileName);
+      return ['photo'];
+    },
+    sendSticker: async () => {
+      const error = new Error('too large');
+      error.code = 'telegram-provider-error';
+      throw error;
+    },
+    sendFile: async () => ['file'],
+  });
+  assert.deepEqual(singles, ['a.webp']);
+});
+
+test('stickers never join an album', async (t) => {
+  const groups = [];
+  const stickers = [];
+  await deliverOutboundArtifacts({
+    artifacts: [
+      await committedArtifact(t, 'a.webp', IMAGE),
+      await committedArtifact(t, 'b.webp', IMAGE),
+    ],
+    deliveryId: 'reply-8',
+    channelKey: 'telegram',
+    sendImage: async () => ['photo'],
+    sendImageGroup: async (files) => {
+      groups.push(files.length);
+      return ['album'];
+    },
+    sendSticker: async (file) => {
+      stickers.push(file.fileName);
+      return ['sticker'];
+    },
+    sendFile: async () => ['file'],
+  });
+  assert.deepEqual(groups, []);
+  assert.deepEqual(stickers, ['a.webp', 'b.webp']);
+});

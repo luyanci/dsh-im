@@ -993,6 +993,17 @@ export class TelegramBotClient {
     });
   }
 
+  /** Deliver a .webp sticker as an actual Telegram sticker. */
+  sendSticker(target, file) {
+    return this.#api.sendSticker({
+      chatId: target.chatId,
+      file,
+      replyToMessageId: target.replyToMessageId,
+      messageThreadId: target.messageThreadId,
+      signal: this.#signal,
+    });
+  }
+
   /** Same arguments as sendImage, but delivered as one album message. */
   sendImageGroup(target, files) {
     return this.#api.sendPhotoAlbum({

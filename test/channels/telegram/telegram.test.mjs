@@ -480,6 +480,29 @@ test('Telegram API uploads a result image as a native photo in the same topic an
   assert.equal(Buffer.from(await photo.arrayBuffer()).toString(), 'telegram-image');
 });
 
+test('Telegram API uploads a webp as a sticker', async () => {
+  let request;
+  const api = new TelegramApi({
+    token: TOKEN,
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return jsonResponse({ ok: true, result: { message_id: 903 } });
+    },
+  });
+  const result = await api.sendSticker({
+    chatId: -100123,
+    messageThreadId: 55,
+    file: { fileName: 'a.webp', mediaType: 'image/webp', bytes: Buffer.from('sticker-bytes') },
+  });
+  assert.equal(result.message_id, 903);
+  assert.match(request.url.pathname, /sendSticker$/);
+  assert.equal(request.options.body.get('chat_id'), '-100123');
+  assert.equal(request.options.body.get('message_thread_id'), '55');
+  const sticker = request.options.body.get('sticker');
+  assert.equal(sticker.name, 'a.webp');
+  assert.equal(Buffer.from(await sticker.arrayBuffer()).toString(), 'sticker-bytes');
+});
+
 test('Telegram API uploads several photos as one media group', async () => {
   let request;
   const api = new TelegramApi({

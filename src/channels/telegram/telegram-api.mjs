@@ -412,6 +412,16 @@ export class TelegramApi {
     });
   }
 
+  async sendSticker({ chatId, file, replyToMessageId, messageThreadId, signal }) {
+    return this.#sendArtifact('sendSticker', 'sticker', 'sticker', {
+      chatId,
+      file,
+      replyToMessageId,
+      messageThreadId,
+      signal,
+    });
+  }
+
   async sendPhoto({ chatId, file, replyToMessageId, messageThreadId, signal }) {
     return this.#sendArtifact('sendPhoto', 'photo', 'photo', {
       chatId,
