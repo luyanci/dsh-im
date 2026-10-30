@@ -11,7 +11,6 @@ import {
   WecomHarnessBridge,
   wecomInboundMessage,
 } from '../../../src/channels/wecom/wecom-bridge.mjs';
-import { DEFAULT_IMAGE_PROMPT } from '../../../src/channels/shared/image-prompt.mjs';
 import { imageInputLimits } from '../../../src/channels/shared/image-input-policy.mjs';
 import { connectionTestTarget } from '../../../src/channels/shared/connection-test.mjs';
 import {
@@ -1052,7 +1051,6 @@ test('Enterprise WeChat downloads an image with its AES key and submits structur
   assert.deepEqual(asked, [{
     sessionId: 'session-existing',
     content: [
-      { type: 'text', text: DEFAULT_IMAGE_PROMPT },
       {
         type: 'image',
         mediaType: 'image/png',

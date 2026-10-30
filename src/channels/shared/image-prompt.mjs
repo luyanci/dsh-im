@@ -4,8 +4,6 @@ const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_IMAGES = 20;
 const DEFAULT_MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
 
-export const DEFAULT_IMAGE_PROMPT = '请分析这张图片。';
-
 /**
  * Model-facing guidance appended when the Host refuses image input for the
  * current model and the same images are re-delivered as workspace files.
@@ -214,7 +212,8 @@ export async function promptContentForMessage(message, {
   const content = [];
   let totalImageBytes = 0;
   if (text) content.push({ type: 'text', text });
-  else if (sources.length > 0) content.push({ type: 'text', text: t(DEFAULT_IMAGE_PROMPT) });
+  // An image-only message stays image-only: the channel used to prepend a
+  // canned "analyze this image" line, which put words in the sender's mouth.
 
   if (deferImages) return content;
 

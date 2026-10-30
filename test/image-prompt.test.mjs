@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  DEFAULT_IMAGE_PROMPT,
   ImagePromptError,
   fetchImageBuffer,
   hasInboundPrompt,
@@ -24,7 +23,7 @@ test('text-only messages retain the existing Harness content shape', async () =>
   ]);
 });
 
-test('image-only messages lazily load bytes and receive a useful default instruction', async () => {
+test('image-only messages lazily load bytes without a canned instruction', async () => {
   let loadOptions;
   const content = await promptContentForMessage({
     content: '',
@@ -38,8 +37,8 @@ test('image-only messages lazily load bytes and receive a useful default instruc
   });
 
   assert.equal(loadOptions.maxBytes, 5 * 1024 * 1024);
+  // No "analyze this image" line: the sender did not write any text.
   assert.deepEqual(content, [
-    { type: 'text', text: DEFAULT_IMAGE_PROMPT },
     {
       type: 'image',
       mediaType: 'image/png',

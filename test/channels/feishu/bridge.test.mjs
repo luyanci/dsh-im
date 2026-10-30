@@ -8,7 +8,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FeishuHarnessBridge } from '../../../src/channels/feishu/bridge.mjs';
 import { VerifiedFeishuChannel } from '../../../src/channels/feishu/feishu-channel.mjs';
-import { DEFAULT_IMAGE_PROMPT } from '../../../src/channels/shared/image-prompt.mjs';
 import { connectionTestTarget } from '../../../src/channels/shared/connection-test.mjs';
 import { setImHostLanguage } from '../../../src/channels/shared/i18n.mjs';
 import {
@@ -1094,7 +1093,6 @@ test('bridge downloads an inbound Feishu image once and submits structured Harne
   assert.deepEqual(asked, [{
     sessionId: 'session-image',
     content: [
-      { type: 'text', text: DEFAULT_IMAGE_PROMPT },
       { type: 'image', mediaType: 'image/png', data: PNG_1X1.toString('base64') },
     ],
   }]);

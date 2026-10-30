@@ -987,10 +987,9 @@ test('DingTalk resolves picture downloadCode lazily and sends image-only content
   assert.equal(downloads[0].downloadCode, 'opaque-picture-code');
   assert.equal(downloads[0].maxBytes, 30 * 1024 * 1024);
   assert.equal(prompts[0].sessionId, 'session-image');
-  assert.deepEqual(prompts[0].content.map(({ type }) => type), ['text', 'image']);
-  assert.equal(prompts[0].content[0].text, '请分析这张图片。');
-  assert.equal(prompts[0].content[1].mediaType, 'image/png');
-  assert.equal(Buffer.from(prompts[0].content[1].data, 'base64').equals(PNG_BYTES), true);
+  assert.deepEqual(prompts[0].content.map(({ type }) => type), ['image']);
+  assert.equal(prompts[0].content[0].mediaType, 'image/png');
+  assert.equal(Buffer.from(prompts[0].content[0].data, 'base64').equals(PNG_BYTES), true);
   assert.equal(sent.at(-1).text, '钉钉图片已识别');
 });
 

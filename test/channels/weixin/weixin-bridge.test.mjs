@@ -827,10 +827,9 @@ test('Weixin sends image-only messages to Harness as structured content', async 
 
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0].sessionId, 'session-image');
-  assert.deepEqual(prompts[0].content.map(({ type }) => type), ['text', 'image']);
-  assert.equal(prompts[0].content[0].text, '请分析这张图片。');
-  assert.equal(prompts[0].content[1].mediaType, 'image/png');
-  assert.equal(Buffer.from(prompts[0].content[1].data, 'base64').equals(PNG_BYTES), true);
+  assert.deepEqual(prompts[0].content.map(({ type }) => type), ['image']);
+  assert.equal(prompts[0].content[0].mediaType, 'image/png');
+  assert.equal(Buffer.from(prompts[0].content[0].data, 'base64').equals(PNG_BYTES), true);
   assert.equal(sent.at(-1).text, '微信图片已识别');
   assert.equal(sent.at(-1).contextToken, 'context-weixin-image');
   assert.equal(fixture.seen.has('weixin-image'), true);

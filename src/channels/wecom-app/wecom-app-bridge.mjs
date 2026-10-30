@@ -34,7 +34,6 @@ import {
   enhanceContextContent,
 } from '../shared/context-enhancement.mjs';
 import {
-  DEFAULT_IMAGE_PROMPT,
   hasInboundImages,
   imagePromptDiagnostic,
   imagePromptUserMessage,
