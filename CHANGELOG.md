@@ -6,6 +6,11 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+### Security / 安全
+
+- 注入的上下文块（`<dsh_im_source>`、`<dsh_im_source_guidance>`、`<dsh_im_reply_to>`、`<dsh_im_context>`）现在由插件用进程内密钥签名，开头标签带上 `sig` 属性，Host 拆分提示词时逐块校验。用户自己写出的同名标签即使 JSON 形状合法，也只会作为普通消息文本保留，不能再冒充插件写入的来源块。
+  Injected context blocks (`<dsh_im_source>`, `<dsh_im_source_guidance>`, `<dsh_im_reply_to>`, `<dsh_im_context>`) are now signed by the plugin with a per-process secret: the opening tag carries a `sig` attribute, verified block by block when the Host splits a prompt. A tag the sender typed stays ordinary message text even with a schema-valid body, so it can no longer impersonate a plugin-produced block.
+
 ## [5.7.0] - 2026-10-28
 
 ### Added / 新增

@@ -24,6 +24,7 @@ import {
   INJECTED_CONTEXT_SEPARATOR,
   INJECTED_CONTEXT_TAGS,
 } from './context-enhancement.mjs';
+import { signatureOfOpenTag, verifyContextBody } from './context-signature.mjs';
 
 /** Source plugin name recorded on every split-out context message. */
 export const INJECTED_CONTEXT_PLUGIN = 'dsh-im';
@@ -209,10 +210,20 @@ function bound(summary) {
  * @returns the body and the offset just past the closing tag, or null.
  */
 function delimited(text, cursor, open, close) {
-  if (!text.startsWith(open, cursor)) return null;
-  const end = text.indexOf(close, cursor + open.length);
+  const name = open.slice(0, -1);
+  if (!text.startsWith(name, cursor)) return null;
+  const afterName = text[cursor + name.length];
+  if (afterName !== '>' && !(typeof afterName === 'string' && /\s/u.test(afterName))) return null;
+  const tagEnd = text.indexOf('>', cursor + name.length);
+  if (tagEnd === -1) return null;
+  const openTag = text.slice(cursor, tagEnd + 1);
+  const end = text.indexOf(close, tagEnd + 1);
   if (end === -1) return null;
-  return { body: text.slice(cursor + open.length, end), end: end + close.length };
+  const body = text.slice(tagEnd + 1, end);
+  // Only a block this plugin signed may become plugin-sourced context: a tag the
+  // sender typed carries no valid signature and stays user text.
+  if (!verifyContextBody(body, signatureOfOpenTag(openTag))) return null;
+  return { body, openTag, end: end + close.length };
 }
 
 /**
@@ -251,7 +262,7 @@ function blockAt(text, cursor, labels) {
         summary: null,
         text: text.slice(cursor, guidance.end),
         // The producer wraps the body in exactly one newline on each side.
-        value: text.slice(cursor + tags.guidanceOpen.length + 1, guidance.end - tags.guidanceClose.length - 1),
+        value: guidance.body.slice(1, -1),
       },
     };
   }

@@ -17,6 +17,11 @@ import { MatrixRoomHistoryStore } from '../../../src/channels/matrix/matrix-room
 
 const tempDirectories = new Set();
 
+/** Opening tags, whatever signature attribute the producer stamped on them. */
+function openContextTags(text) {
+  return [...text.matchAll(/<dsh_im_context(?:\s[^<>]*)?>/g)].length;
+}
+
 async function makeTempDirectory(prefix) {
   const created = await mkdtemp(join(tmpdir(), prefix));
   tempDirectories.add(created);
@@ -265,7 +270,7 @@ test('the context builder emits split-ready injected context blocks merged by ev
     { collector: 'reply', roomId: '!r:x', eventId: '$e:x', sender: '@b:x', text: '   ' },
     { collector: 'ambient-recent', roomId: '!r:x', eventId: '$c:x', name: 'C', ts: 1, text: '背景' },
   ]);
-  const bodies = [...blocks.matchAll(/<dsh_im_context>([\s\S]*?)<\/dsh_im_context>/g)]
+  const bodies = [...blocks.matchAll(/<dsh_im_context[^>]*>([\s\S]*?)<\/dsh_im_context>/g)]
     .map(([, body]) => JSON.parse(body));
   deepStrictEqual(bodies.length, 2, 'an entry without text contributes no block at all');
   deepStrictEqual(bodies[0], {
@@ -279,7 +284,7 @@ test('the context builder emits split-ready injected context blocks merged by ev
     { collector: 'thread-root', roomId: '!r:x', eventId: '$e:x', sender: '@b:x', ts: 5, text: 'shijian' },
     { collector: 'reply', roomId: '!r:x', eventId: '$e:x', sender: '@b:x', ts: 5, text: 'shijian' },
   ]);
-  const mergedBodies = [...merged.matchAll(/<dsh_im_context>([\s\S]*?)<\/dsh_im_context>/g)]
+  const mergedBodies = [...merged.matchAll(/<dsh_im_context[^>]*>([\s\S]*?)<\/dsh_im_context>/g)]
     .map(([, body]) => JSON.parse(body));
   deepStrictEqual(mergedBodies.length, 1, 'one message hit by two roles rides along as a single attributed block');
   deepStrictEqual(mergedBodies[0].collector, 'thread-root+reply');
@@ -290,7 +295,7 @@ test('the context builder emits split-ready injected context blocks merged by ev
     { collector: 'ambient-recent', roomId: '!r:x', text: '同文' },
     { collector: 'ambient-recent', roomId: '!r:x', text: '同文' },
   ]);
-  deepStrictEqual(anonymous.split('<dsh_im_context>').length - 1, 2,
+  deepStrictEqual(openContextTags(anonymous), 2,
     'entries without an event id are not merged on text alone');
 
   const forged = contextBlockFor({
@@ -298,7 +303,7 @@ test('the context builder emits split-ready injected context blocks merged by ev
   });
   deepStrictEqual(forged.split('</dsh_im_context>').length - 1, 1,
     'collected text can not forge a second closing tag');
-  deepStrictEqual(forged.split('<dsh_im_context>').length - 1, 1);
+  deepStrictEqual(openContextTags(forged), 1);
   match(forged, /\\u003c\/dsh_im_context\\u003e/u, 'tag characters inside collected values stay escaped');
 
   deepStrictEqual(composeContextPrompt({ block: '', promptText: '问题' }), '问题');

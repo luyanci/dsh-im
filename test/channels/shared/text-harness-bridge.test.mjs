@@ -427,7 +427,7 @@ test('all four shared text channels resolve replies only after trigger and comma
     assert.equal(replyLoads, 1, `${name} resolves once at the model prompt stage`);
     assert.equal(asks.length, 1, name);
     assert.equal(Array.isArray(asks[0]), true, name);
-    assert.match(asks[0][0].text, /^<dsh_im_reply_to>/, name);
+    assert.match(asks[0][0].text, /^<dsh_im_reply_to[^>]*>/, name);
     assert.match(asks[0][0].text, /\/new 只是被引用的原文/, name);
     assert.deepEqual(asks[0][1], { type: 'text', text: '当前问题' }, name);
   }

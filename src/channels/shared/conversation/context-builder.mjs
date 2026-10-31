@@ -14,6 +14,7 @@
 
 import { INJECTED_CONTEXT_SEPARATOR, INJECTED_CONTEXT_TAGS } from '../context-enhancement.mjs';
 import { CONTEXT_NOTE } from '../injected-context.mjs';
+import { signedOpenTag } from '../context-signature.mjs';
 
 /**
  * @typedef {Object} ContextEntry
@@ -111,7 +112,8 @@ export function contextBlockFor(entry) {
     '>': '\\u003e',
     '&': '\\u0026',
   })[character]);
-  return `${INJECTED_CONTEXT_TAGS.contextOpen}${json}${INJECTED_CONTEXT_TAGS.contextClose}`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.contextOpen, json)}${json}`
+    + `${INJECTED_CONTEXT_TAGS.contextClose}`;
 }
 
 /**

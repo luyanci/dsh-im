@@ -1,4 +1,6 @@
 // Shared by the Host and settings UI; keep this module browser-compatible.
+import { signedOpenTag } from './context-signature.mjs';
+
 export const CONTEXT_ENHANCEMENT_FIELDS = Object.freeze([
   'channel', 'conversationType', 'senderId', 'senderName', 'conversationTitle',
   'chatId', 'threadId', 'botId', 'sentAt',
@@ -430,7 +432,8 @@ function sourceBlock(snapshot, sourceFactory) {
   const json = JSON.stringify(projected).replace(/[<>&]/g, (character) => ({
     '<': '\\u003c', '>': '\\u003e', '&': '\\u0026',
   })[character]);
-  return `${INJECTED_CONTEXT_TAGS.sourceOpen}${json}${INJECTED_CONTEXT_TAGS.sourceClose}`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.sourceOpen, json)}${json}`
+    + `${INJECTED_CONTEXT_TAGS.sourceClose}`;
 }
 
 function guidanceBlock(guidance) {
@@ -438,7 +441,9 @@ function guidanceBlock(guidance) {
   const body = guidance.replace(/<\/?dsh_im_source_guidance\b[^>]*(?:>|$)/gi, (tag) => (
     tag.replace(/</g, '&lt;').replace(/>/g, '&gt;')
   ));
-  return `${INJECTED_CONTEXT_TAGS.guidanceOpen}\n${body}\n${INJECTED_CONTEXT_TAGS.guidanceClose}`;
+  const wrapped = `\n${body}\n`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.guidanceOpen, wrapped)}`
+    + `${wrapped}${INJECTED_CONTEXT_TAGS.guidanceClose}`;
 }
 
 /**

@@ -1711,7 +1711,7 @@ test('Discord captures context settings before asynchronous Thread routing and u
   releaseRouting.resolve();
   await eventually(() => runtime.status.messagesReplied === 1);
   assert.match(prompts[0], /accepted before routing/);
-  assert.deepEqual(JSON.parse(/^<dsh_im_source>(.*?)<\/dsh_im_source>/su.exec(prompts[0])[1]), {
+  assert.deepEqual(JSON.parse(/^<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/su.exec(prompts[0])[1]), {
     channel: 'discord', conversationType: 'group', senderId: '333333333333333333',
     senderName: 'Group Nick', botId: 'discord_internal',
   });

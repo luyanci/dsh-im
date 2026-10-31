@@ -1,4 +1,5 @@
 import { INJECTED_CONTEXT_TAGS } from '../context-enhancement.mjs';
+import { signedOpenTag } from '../context-signature.mjs';
 import { promptContentForMessage } from '../image-prompt.mjs';
 
 const REPLY_CONTENT_MAX_CODE_POINTS = 8_000;
@@ -131,7 +132,8 @@ function replyBlock(reference) {
     '>': '\\u003e',
     '&': '\\u0026',
   })[character]);
-  return `${INJECTED_CONTEXT_TAGS.replyOpen}${json}${INJECTED_CONTEXT_TAGS.replyClose}`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.replyOpen, json)}${json}`
+    + `${INJECTED_CONTEXT_TAGS.replyClose}`;
 }
 
 export function hasReplyReference(message) {

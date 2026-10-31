@@ -102,7 +102,7 @@ test('Weixin bridge sends ref_msg context to Harness but does not execute quoted
 
   assert.equal(clears, 0);
   assert.equal(Array.isArray(prompt), true);
-  assert.match(prompt[0].text, /<dsh_im_reply_to>/);
+  assert.match(prompt[0].text, /<dsh_im_reply_to[^>]*>/);
   assert.match(prompt[0].text, /"content":"\/new"/);
   assert.deepEqual(prompt.at(-1), { type: 'text', text: '这条指令是什么意思？' });
 });
@@ -148,7 +148,7 @@ test('Weixin bridge restores a metadata-only bot quote from its recent outbound 
     }],
   }));
 
-  assert.match(prompts[1][0].text, /<dsh_im_reply_to>/);
+  assert.match(prompts[1][0].text, /<dsh_im_reply_to[^>]*>/);
   assert.match(prompts[1][0].text, /"content":"deepseek-v4-flash"/);
   await rm(root, { recursive: true, force: true });
 });
@@ -2628,6 +2628,11 @@ function promptText(content) {
     : content.map((part) => String(part.text ?? '')).join('\n');
 }
 
+/** Produced prefixes carry a signature attribute; comparisons ignore it. */
+function withoutSignature(text) {
+  return typeof text === 'string' ? text.replace(/ sig="[^"]*"/gu, '') : text;
+}
+
 test('Weixin enhancement injects the platform send time, and falls back to the message-id clock', async () => {
   const fixture = stateFixture();
   fixture.sessions.set('p2p:owner-user', 'session-sent-at');
@@ -2662,7 +2667,7 @@ test('Weixin enhancement injects the platform send time, and falls back to the m
   assert.equal(prompts.length, 1);
   const first = textOf(prompts[0]);
   const platformStamp = localStamp(Date.parse('2026-09-28T14:03:07+08:00'));
-  assert.equal(first.includes(`<dsh_im_source>{"sentAt":"${platformStamp}"}</dsh_im_source>`), true,
+  assert.equal(withoutSignature(first).includes(`<dsh_im_source>{"sentAt":"${platformStamp}"}</dsh_im_source>`), true,
     `platform send time was not injected: ${first}`);
 
   // Without the platform field the iLink message id still yields the moment.
@@ -2670,7 +2675,7 @@ test('Weixin enhancement injects the platform send time, and falls back to the m
   assert.equal(prompts.length, 2);
   const second = textOf(prompts[1]);
   const idStamp = localStamp(Date.parse('2026-09-28T16:30:45+08:00'));
-  assert.equal(second.includes(`<dsh_im_source>{"sentAt":"${idStamp}"}</dsh_im_source>`), true,
+  assert.equal(withoutSignature(second).includes(`<dsh_im_source>{"sentAt":"${idStamp}"}</dsh_im_source>`), true,
     `message-id clock was not used: ${second}`);
   assert.equal(second.includes('senderId'), false, 'only the selected field may be sent');
 });
@@ -2811,7 +2816,7 @@ test('Weixin keeps delivering a message whose send time cannot be read', async (
   }
   assert.equal(prompts.length, 1, 'the message itself must still be delivered');
   const text = promptText(prompts[0]);
-  assert.match(text, /<dsh_im_source>\{"senderId":"owner-user"\}<\/dsh_im_source>/,
+  assert.match(withoutSignature(text), /<dsh_im_source>\{"senderId":"owner-user"\}<\/dsh_im_source>/,
     `only the unreadable field is dropped: ${text}`);
   assert.ok(text.endsWith('时间读不到也要送达'));
 });

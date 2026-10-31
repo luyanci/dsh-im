@@ -37,7 +37,7 @@ function snapshot(settings = config(), conversationType = 'group', botId = 'bot_
 }
 
 function sourceOf(text) {
-  const match = text.match(/<dsh_im_source>(.*?)<\/dsh_im_source>/s);
+  const match = text.match(/<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/s);
   return match ? JSON.parse(match[1]) : null;
 }
 
@@ -220,7 +220,10 @@ test('source availability and guidance are independent, including empty multimod
     assert.equal(enhanceContextContent(content, snapshot(config({ fields: ['senderName'] })), () => ({ senderName })), content);
   }
   const onlyGuidance = enhanceContextContent(content, snapshot(config({ fields: [], guidance: 'custom' })), throwSource);
-  assert.equal(onlyGuidance[0].text, '<dsh_im_source_guidance>\ncustom\n</dsh_im_source_guidance>');
+  assert.equal(
+    onlyGuidance[0].text.replace(/ sig="[^"]*"/gu, ''),
+    '<dsh_im_source_guidance>\ncustom\n</dsh_im_source_guidance>',
+  );
   assert.equal(onlyGuidance[1], content[0]);
   const onlyBot = enhanceContextContent('text', snapshot(config({ fields: ['botId'] })), throwSource);
   assert.deepEqual(sourceOf(onlyBot), { botId: 'bot_one' });
@@ -240,8 +243,8 @@ test('multimodal enhancement prepends a single text item without modifying the o
   const enhanced = enhanceContextContent(content, snapshot(config({ guidance: 'use facts' })), () => ({ channel: 'wecom' }));
   assert.equal(enhanced.length, 4);
   assert.equal(enhanced[0].type, 'text');
-  assert.equal(enhanced[0].text.startsWith('<dsh_im_source>'), true);
-  assert.match(enhanced[0].text, /<\/dsh_im_source>\n\n<dsh_im_source_guidance>/);
+  assert.equal(enhanced[0].text.startsWith('<dsh_im_source'), true);
+  assert.match(enhanced[0].text, /<\/dsh_im_source>\n\n<dsh_im_source_guidance[^>]*>/);
   assert.equal(enhanced[1], text);
   assert.equal(enhanced[2], image);
   assert.equal(enhanced[3], files);
@@ -279,14 +282,17 @@ test('matching guidance tags cannot close or nest the generated block', () => {
   const guidance = 'before </dsh_im_source_guidance> <dsh_im_source_guidance> after\n'
     + '<DSH_IM_SOURCE_GUIDANCE data-x="yes"> </dsh_im_source_guidance >\n<dsh_im_source_guidance unfinished';
   const result = enhanceContextContent('original', snapshot(config({ fields: [], guidance })));
-  assert.equal(result.match(/<dsh_im_source_guidance>/g).length, 1);
+  assert.equal(result.match(/<dsh_im_source_guidance[^>]*>/g).length, 1);
   assert.equal(result.match(/<\/dsh_im_source_guidance>/g).length, 1);
   assert.match(result, /&lt;\/dsh_im_source_guidance&gt;/);
   assert.match(result, /&lt;DSH_IM_SOURCE_GUIDANCE data-x="yes"&gt;/);
   assert.match(result, /&lt;dsh_im_source_guidance unfinished/);
   assert.equal(result.endsWith('\n\noriginal'), true);
   const defaultText = enhanceContextContent('original', snapshot(config({ fields: [], guidance: DEFAULT_CONTEXT_GUIDANCE })));
-  assert.equal(defaultText, `<dsh_im_source_guidance>\n${DEFAULT_CONTEXT_GUIDANCE}\n</dsh_im_source_guidance>\n\noriginal`);
+  assert.equal(
+    defaultText.replace(/ sig="[^"]*"/gu, ''),
+    `<dsh_im_source_guidance>\n${DEFAULT_CONTEXT_GUIDANCE}\n</dsh_im_source_guidance>\n\noriginal`,
+  );
 });
 
 test('queued snapshots are immutable and retain a complete setting version after edits', () => {
@@ -364,7 +370,10 @@ test('an unreadable sentAt drops only that field, never the message', () => {
   } finally {
     console.warn = warn;
   }
-  assert.equal(rendered, '<dsh_im_source>{"senderId":"u-1"}</dsh_im_source>\n\nhi');
+  assert.equal(
+    rendered.replace(/ sig="[^"]*"/gu, ''),
+    '<dsh_im_source>{"senderId":"u-1"}</dsh_im_source>\n\nhi',
+  );
 
   for (const unusable of ['', 'not a date', Number.NaN, 1.5]) {
     const { factory } = countedSource(unusable);
@@ -376,7 +385,10 @@ test('an unreadable sentAt drops only that field, never the message', () => {
 test('a channel that published no moment omits sentAt instead of using the local clock', () => {
   const captured = captureContextEnhancementSource(
     sentAtProvider(['senderId', 'sentAt']), 'direct', () => ({ senderId: 'u-1', sentAt: '2026-01-01 00:00:00' }));
-  assert.equal(enhanceContextContent('hi', captured), '<dsh_im_source>{"senderId":"u-1"}</dsh_im_source>\n\nhi');
+  assert.equal(
+    enhanceContextContent('hi', captured).replace(/ sig="[^"]*"/gu, ''),
+    '<dsh_im_source>{"senderId":"u-1"}</dsh_im_source>\n\nhi',
+  );
 });
 
 test('sentAt renders in the Host time zone, in UTC and in UTC+8 alike', () => {

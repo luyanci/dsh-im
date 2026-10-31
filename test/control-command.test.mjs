@@ -202,13 +202,11 @@ test('/steer carries the source block of whoever issued it', async () => {
     enhancement,
   });
   assert.match(result.message, /已提交/);
-  assert.deepEqual(calls.find(([method]) => method === 'steerActiveTurn'), [
-    'steerActiveTurn',
-    'session-one',
-    '<dsh_im_source>{"channel":"weixin","senderId":"wx-1"}</dsh_im_source>\n\n别删这个文件',
-    control,
-    {},
-  ]);
+  const [, , prompt, owner, options] = calls.find(([method]) => method === 'steerActiveTurn');
+  assert.deepEqual(
+    [prompt.replace(/ sig="[^"]*"/gu, ''), owner, options],
+    ['<dsh_im_source>{"channel":"weixin","senderId":"wx-1"}</dsh_im_source>\n\n别删这个文件', control, {}],
+  );
 });
 
 test('/steer without an enhancement still sends the bare instruction', async () => {

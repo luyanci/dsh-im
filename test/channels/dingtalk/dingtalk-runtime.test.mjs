@@ -404,7 +404,7 @@ for (const scenario of [
         const enabled = switches[scenario.conversationType === '1' ? 0 : 1];
         if (enabled) {
           assert.match(asked[index], index === 0 ? /before callback returned/ : /after callback returned/);
-          assert.deepEqual(JSON.parse(/^<dsh_im_source>(.*?)<\/dsh_im_source>/su.exec(asked[index])[1]), {
+          assert.deepEqual(JSON.parse(/^<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/su.exec(asked[index])[1]), {
             channel: 'dingtalk', botId: 'dingtalk_internal',
           });
         } else {
