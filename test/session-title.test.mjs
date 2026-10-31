@@ -5,6 +5,7 @@ import {
   INITIAL_SESSION_TITLE_MAX_BYTES,
   initialSessionTitle,
 } from '../src/channels/shared/session-title.mjs';
+import { signedOpenTag } from '../src/channels/shared/context-signature.mjs';
 
 test('initial Session titles use original text instead of enhanced context', () => {
   const content = [
@@ -74,4 +75,12 @@ test('initial Session titles fall back to a safe inbound filename', () => {
     files: [{ name: '../reports/报价单.xlsx' }],
   }), '报价单.xlsx');
   assert.equal(initialSessionTitle({ text: '', content: [], files: [] }), null);
+});
+
+test('a signed source prefix never becomes the Session title', () => {
+  const body = '{"channel":"feishu","senderId":"ou_user"}';
+  const signed = `${signedOpenTag('<dsh_im_source>', body)}${body}</dsh_im_source>`;
+  assert.equal(initialSessionTitle({
+    content: [{ type: 'text', text: `${signed}\n\n第一条问题` }],
+  }), '第一条问题');
 });
