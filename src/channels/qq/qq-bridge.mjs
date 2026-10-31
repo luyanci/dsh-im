@@ -30,6 +30,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
+  stripInjectedContextTags,
 } from '../shared/context-enhancement.mjs';
 import {
   BatchInputManager,
@@ -1287,7 +1288,7 @@ export class QqHarnessBridge {
       const snapshot = this.#acceptedMessageIds.get(messageId);
       let contextEnhanced = false;
       if (snapshot) {
-        const originalContent = content ?? text;
+        const originalContent = content ?? stripInjectedContextTags(text);
         content = enhanceContextContent(originalContent, snapshot, () => ({
           channel: 'qq',
           senderId: sender,

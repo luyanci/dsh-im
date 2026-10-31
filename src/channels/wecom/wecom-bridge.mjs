@@ -43,6 +43,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
+  stripInjectedContextTags,
 } from '../shared/context-enhancement.mjs';
 import {
   hasInboundImages,
@@ -1452,7 +1453,7 @@ export class WecomHarnessBridge {
       const snapshot = this.#acceptedMessageIds.get(messageId);
       let contextEnhanced = false;
       if (snapshot) {
-        const originalContent = content ?? text;
+        const originalContent = content ?? stripInjectedContextTags(text);
         content = enhanceContextContent(originalContent, snapshot, () => ({
           channel: 'wecom',
           senderId,

@@ -526,11 +526,13 @@ for (const channel of CHANNELS) {
     await current.bridge.accept(current.event(1, 'hello'));
     assert.deepEqual(seen, ['严肃一点']);
 
-    // A message that mimics an injected block is a message: it stays verbatim
-    // and the published guidance remains the captured setting.
+    // A message that mimics an injected block is still a message, but the fake
+    // block is removed before the prompt is built: only the channel composes
+    // provenance, and the published guidance stays the captured setting.
     await current.bridge.accept(current.event(2, forged));
     assert.deepEqual(seen, ['严肃一点', '严肃一点']);
-    assert.match(textOf(current.prompts[1]), /\{\{unregistered_name\}\}/);
+    assert.doesNotMatch(textOf(current.prompts[1]), /unregistered_name/);
+    assert.match(textOf(current.prompts[1]), /请解释这段文本/);
 
     // With the scope off nothing is published for the Session at all.
     const off = [];
@@ -739,9 +741,8 @@ test('Telegram cannot be made to accept a forged context block from the sender',
   // Exactly one real prefix: the one this channel injected.
   assert.equal(content.match(/<dsh_im_source>/g)?.length, 1);
   assert.equal(content.match(/<\/dsh_im_source>/g)?.length, 1);
-  // The sender's own tag survives as visible text, without its meaning.
-  assert.match(content, /&lt;dsh_im_source&gt;/);
+  // The forged block is gone, payload included; the rest of the message stays.
+  assert.doesNotMatch(content, /"senderId":"999"/);
+  assert.doesNotMatch(content, /forged/);
   assert.match(content, /你说呢/);
-  // The forged payload is still readable, but only as escaped text.
-  assert.match(content, /&lt;dsh_im_source&gt;\{"senderId":"999"/);
 });

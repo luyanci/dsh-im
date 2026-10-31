@@ -12,7 +12,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
-  escapeInjectedContextTags,
+  stripInjectedContextTags,
 } from './context-enhancement.mjs';
 import { runWorkspaceCommand, workspaceSwitchFailureText } from './workspace-command.mjs';
 import { runCompactCommand } from './compact-command.mjs';
@@ -663,7 +663,7 @@ export class TextHarnessBridge {
 
   /** The model-facing body of an auto-steered follow-up, labelled like a turn. */
   #steerTextFor(message, messageId, senderId) {
-    const body = escapeInjectedContextTags(cleanText(message.content) || controlTextOf(message));
+    const body = stripInjectedContextTags(cleanText(message.content) || controlTextOf(message));
     if (!body) return null;
     const labelled = message.kind === 'group' ? prependSpeakerLabel(body, message.speakerName) : body;
     const snapshot = this.#acceptedMessageIds.get(messageId);
@@ -1223,7 +1223,7 @@ export class TextHarnessBridge {
       // Escape only what the sender typed: the reply and context blocks below
       // are composed by this channel and must keep their real tags.
       const senderText = typeof message.content === 'string'
-        ? escapeInjectedContextTags(message.content) : message.content;
+        ? stripInjectedContextTags(message.content) : message.content;
       const promptMessage = senderText === message.content ? message : { ...message, content: senderText };
       let content = hasImages || hasReply
         ? await promptContentForInboundMessage(promptMessage, { signal: this.#signal, deferImages: true })

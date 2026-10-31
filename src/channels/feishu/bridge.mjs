@@ -73,6 +73,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
+  stripInjectedContextTags,
 } from '../shared/context-enhancement.mjs';
 import { deliverOutboundArtifacts } from '../shared/semantic/artifact-delivery.mjs';
 import {
@@ -5389,7 +5390,7 @@ export class FeishuHarnessBridge {
       const rich = hasInboundImages(input) || hasReplyReference(input);
       const original = rich
         ? await promptContentForInboundMessage(input, { signal: this.#signal, deferImages: true })
-        : input.content;
+        : stripInjectedContextTags(input.content);
       const enhanced = enhanceContextContent(original, snapshot, () => ({
         channel: 'feishu',
         senderId: senderOpenId(event),

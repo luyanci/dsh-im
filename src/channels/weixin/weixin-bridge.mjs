@@ -42,6 +42,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
+  stripInjectedContextTags,
   withSentAt,
 } from '../shared/context-enhancement.mjs';
 import {
@@ -859,7 +860,7 @@ export class WeixinHarnessBridge {
         const captured = this.#acceptedMessageIds.get(messageId);
         let contextEnhanced = false;
         if (captured) {
-          const originalContent = content ?? text;
+          const originalContent = content ?? stripInjectedContextTags(text);
           // The capture already carries the moment its own source published, so
           // `enhanceContextContent` accepts it as-is: passing only `.snapshot`
           // here would drop `sentAt` and silently render no block at all.

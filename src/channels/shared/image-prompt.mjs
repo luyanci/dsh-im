@@ -1,4 +1,5 @@
 import { t } from './i18n.mjs';
+import { stripInjectedContextTags } from './context-enhancement.mjs';
 
 const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_IMAGES = 20;
@@ -208,7 +209,7 @@ export async function promptContentForMessage(message, {
     );
   }
 
-  const text = cleanText(message?.content);
+  const text = stripInjectedContextTags(cleanText(message?.content));
   const content = [];
   let totalImageBytes = 0;
   if (text) content.push({ type: 'text', text });
