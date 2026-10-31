@@ -10,7 +10,7 @@ import {
 function parsedReference(content) {
   const text = content[0]?.text;
   assert.equal(typeof text, 'string');
-  const match = /^<dsh_im_reply_to>(.*)<\/dsh_im_reply_to>$/u.exec(text);
+  const match = /^<dsh_im_reply_to[^>]*>(.*)<\/dsh_im_reply_to>$/u.exec(text);
   assert.ok(match, text);
   return JSON.parse(match[1]);
 }

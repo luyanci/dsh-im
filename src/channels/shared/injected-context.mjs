@@ -24,6 +24,7 @@ import {
   INJECTED_CONTEXT_SEPARATOR,
   INJECTED_CONTEXT_TAGS,
 } from './context-enhancement.mjs';
+import { signatureOfOpenTag, verifyContextBody } from './context-signature.mjs';
 
 /** Source plugin name recorded on every split-out context message. */
 export const INJECTED_CONTEXT_PLUGIN = 'dsh-im';

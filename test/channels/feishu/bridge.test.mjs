@@ -1170,7 +1170,7 @@ test('bridge resolves a Feishu CardKit reply only at prompt time and keeps quote
   assert.equal(asked[0].sessionId, 'session-reply');
   assert.equal(asked[0].content.length, 2);
   const match = asked[0].content[0].text.match(
-    /^<dsh_im_reply_to>(.*)<\/dsh_im_reply_to>$/u,
+    /^<dsh_im_reply_to[^>]*>(.*)<\/dsh_im_reply_to>$/u,
   );
   assert.ok(match);
   assert.deepEqual(JSON.parse(match[1]), {

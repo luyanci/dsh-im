@@ -2012,7 +2012,7 @@ for (const scenario of [
         const enabled = switches[event.message.chat.type === 'private' ? 0 : 1];
         if (enabled) {
           assert.match(content, index < 2 ? /before cursor write/ : /after cursor write/);
-          assert.deepEqual(JSON.parse(/^<dsh_im_source>(.*?)<\/dsh_im_source>/su.exec(content)[1]), {
+          assert.deepEqual(JSON.parse(/^<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/su.exec(content)[1]), {
             channel: 'telegram', botId: 'telegram_poll',
           });
         } else {
