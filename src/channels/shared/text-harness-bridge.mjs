@@ -12,6 +12,7 @@ import {
   captureContextEnhancement,
   captureContextEnhancementSource,
   enhanceContextContent,
+  escapeInjectedContextTags,
 } from './context-enhancement.mjs';
 import { runWorkspaceCommand, workspaceSwitchFailureText } from './workspace-command.mjs';
 import { runCompactCommand } from './compact-command.mjs';
@@ -662,7 +663,7 @@ export class TextHarnessBridge {
 
   /** The model-facing body of an auto-steered follow-up, labelled like a turn. */
   #steerTextFor(message, messageId, senderId) {
-    const body = cleanText(message.content) || controlTextOf(message);
+    const body = escapeInjectedContextTags(cleanText(message.content) || controlTextOf(message));
     if (!body) return null;
     const labelled = message.kind === 'group' ? prependSpeakerLabel(body, message.speakerName) : body;
     const snapshot = this.#acceptedMessageIds.get(messageId);
@@ -1219,9 +1220,14 @@ export class TextHarnessBridge {
       // the model — the email channel prefixes the mail headers there, so a
       // subject-only instruction is not silently dropped. Falling back to the
       // parsed text kept commands working but lost that decoration entirely.
+      // Escape only what the sender typed: the reply and context blocks below
+      // are composed by this channel and must keep their real tags.
+      const senderText = typeof message.content === 'string'
+        ? escapeInjectedContextTags(message.content) : message.content;
+      const promptMessage = senderText === message.content ? message : { ...message, content: senderText };
       let content = hasImages || hasReply
-        ? await promptContentForInboundMessage(message, { signal: this.#signal, deferImages: true })
-        : cleanText(message.content) || undefined;
+        ? await promptContentForInboundMessage(promptMessage, { signal: this.#signal, deferImages: true })
+        : cleanText(senderText) || undefined;
       // A room conversation is shared by everyone who addresses the bot in it, so
       // the delivered prompt says whose turn this is. Only the model-facing content
       // is labelled; the parsed control text, commands, and ledger keys keep the

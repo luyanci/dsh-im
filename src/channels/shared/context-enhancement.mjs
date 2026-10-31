@@ -23,6 +23,30 @@ export const INJECTED_CONTEXT_TAGS = Object.freeze({
 /** Separator the producer joins prefix blocks with, and the splitter consumes. */
 export const INJECTED_CONTEXT_SEPARATOR = '\n\n';
 
+/**
+ * Neutralize context tags the sender typed themselves.
+ *
+ * The prefix this module adds is ordinary text as far as the Host is concerned,
+ * so a message that starts with a hand-written `<dsh_im_source>` block would be
+ * parsed as provenance that the channel never produced. Escaping the angle
+ * brackets keeps the words visible while removing their meaning as a tag.
+ */
+const INJECTED_CONTEXT_TAG_PATTERN = /<\/?dsh_im_(?:source_guidance|source|reply_to|context|files)(?![\w-])[^>]*>/gi;
+
+export function escapeInjectedContextTags(value) {
+  if (Array.isArray(value)) {
+    return value.map((block) => (
+      block?.type === 'text' && typeof block.text === 'string'
+        ? { ...block, text: escapeInjectedContextTags(block.text) }
+        : block
+    ));
+  }
+  if (typeof value !== 'string' || !value) return value;
+  return value.replace(INJECTED_CONTEXT_TAG_PATTERN, (tag) => (
+    tag.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  ));
+}
+
 export const CONTEXT_ENHANCEMENT_GUIDANCE_MAX_LENGTH = 8_000;
 export const CONTEXT_GROUP_GUIDANCE_EXAMPLE = `仅依据当前消息的 <dsh_im_source> 中实际提供的字段理解来源；没有提供的字段不要猜测或补全。
 当前消息来自群聊，请使用严肃、克制、简洁的表达方式。`;
