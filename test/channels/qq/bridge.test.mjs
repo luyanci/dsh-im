@@ -165,7 +165,7 @@ test('QQ sends quote context to Harness but does not execute quoted commands', a
 
   assert.equal(clears, 0);
   assert.equal(Array.isArray(prompt), true);
-  assert.match(prompt[0].text, /<dsh_im_reply_to>/);
+  assert.match(prompt[0].text, /<dsh_im_reply_to[^>]*>/);
   assert.match(prompt[0].text, /"content":"\/new"/);
   assert.deepEqual(prompt.at(-1), { type: 'text', text: '这条指令是什么意思？' });
 });

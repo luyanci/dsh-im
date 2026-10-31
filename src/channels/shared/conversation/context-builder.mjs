@@ -14,6 +14,7 @@
 
 import { INJECTED_CONTEXT_SEPARATOR, INJECTED_CONTEXT_TAGS } from '../context-enhancement.mjs';
 import { CONTEXT_NOTE } from '../injected-context.mjs';
+import { signedOpenTag } from '../context-signature.mjs';
 
 /**
  * @typedef {Object} ContextEntry

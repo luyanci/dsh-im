@@ -240,7 +240,7 @@ test('multimodal enhancement prepends a single text item without modifying the o
   const enhanced = enhanceContextContent(content, snapshot(config({ guidance: 'use facts' })), () => ({ channel: 'wecom' }));
   assert.equal(enhanced.length, 4);
   assert.equal(enhanced[0].type, 'text');
-  assert.equal(enhanced[0].text.startsWith('<dsh_im_source>'), true);
+  assert.equal(enhanced[0].text.startsWith('<dsh_im_source'), true);
   assert.match(enhanced[0].text, /<\/dsh_im_source>\n\n<dsh_im_source_guidance>/);
   assert.equal(enhanced[1], text);
   assert.equal(enhanced[2], image);
@@ -279,7 +279,7 @@ test('matching guidance tags cannot close or nest the generated block', () => {
   const guidance = 'before </dsh_im_source_guidance> <dsh_im_source_guidance> after\n'
     + '<DSH_IM_SOURCE_GUIDANCE data-x="yes"> </dsh_im_source_guidance >\n<dsh_im_source_guidance unfinished';
   const result = enhanceContextContent('original', snapshot(config({ fields: [], guidance })));
-  assert.equal(result.match(/<dsh_im_source_guidance>/g).length, 1);
+  assert.equal(result.match(/<dsh_im_source_guidance[^>]*>/g).length, 1);
   assert.equal(result.match(/<\/dsh_im_source_guidance>/g).length, 1);
   assert.match(result, /&lt;\/dsh_im_source_guidance&gt;/);
   assert.match(result, /&lt;DSH_IM_SOURCE_GUIDANCE data-x="yes"&gt;/);

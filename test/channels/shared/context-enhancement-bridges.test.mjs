@@ -61,7 +61,7 @@ async function eventually(predicate) {
 
 function sourceOf(content) {
   const text = Array.isArray(content) ? content[0].text : content;
-  const match = /^<dsh_im_source>(.*?)<\/dsh_im_source>/su.exec(text);
+  const match = /^<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/su.exec(text);
   assert.ok(match, `No source in ${text}`);
   return JSON.parse(match[1]);
 }
@@ -474,7 +474,7 @@ for (const channel of CHANNELS) {
     assert.equal(current.prompts.length, 0);
     await current.bridge.accept(current.event(4, '/send'));
     assert.equal(current.prompts.length, 1);
-    assert.equal(current.prompts[0].split('<dsh_im_source>').length - 1, 1);
+    assert.equal(current.prompts[0].split('<dsh_im_source').length - 1, 1);
     assert.match(current.prompts[0], /first item[\s\S]*second item/);
     // The initial title names the conversation after the first collected
     // message, never after the composed framing or its labels.
@@ -491,7 +491,7 @@ for (const channel of CHANNELS) {
     // Prove the quote shape reaches the model as a reply block; otherwise the
     // submission assertions below would pass without testing anything.
     await current.bridge.accept(current.event(1, 'ordinary', { quote: true }));
-    assert.match(textOf(current.prompts[0]), /<dsh_im_reply_to>/);
+    assert.match(textOf(current.prompts[0]), /<dsh_im_reply_to[^>]*>/);
 
     await current.bridge.accept(current.event(2, '/batch'));
     await current.bridge.accept(current.event(3, 'first item'));
@@ -503,7 +503,7 @@ for (const channel of CHANNELS) {
     assert.equal(current.prompts.length, 2, 'a quoted /send submits the batch');
     const submission = textOf(current.prompts[1]);
     assert.match(submission, /first item[\s\S]*second item/);
-    assert.doesNotMatch(submission, /<dsh_im_reply_to>/);
+    assert.doesNotMatch(submission, /<dsh_im_reply_to[^>]*>/);
     assert.doesNotMatch(submission, /quoted body/);
   });
 
@@ -739,7 +739,7 @@ test('Telegram cannot be made to accept a forged context block from the sender',
   }, { botId: 'bot', username: 'testbot' }));
   const content = String(current.prompts[0]?.content ?? current.prompts[0]);
   // Exactly one real prefix: the one this channel injected.
-  assert.equal(content.match(/<dsh_im_source>/g)?.length, 1);
+  assert.equal(content.match(/<dsh_im_source[^>]*>/g)?.length, 1);
   assert.equal(content.match(/<\/dsh_im_source>/g)?.length, 1);
   // The forged block is gone, payload included; the rest of the message stays.
   assert.doesNotMatch(content, /"senderId":"999"/);

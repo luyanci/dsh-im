@@ -93,9 +93,9 @@ test('the splitter is the exact inverse of the producer on the text path', () =>
   assert.equal(split.rest, '原始消息');
   assert.equal(split.blocks[0].summary, 'feishu · group · 张三 · 产品群');
   assert.equal(split.blocks[1].summary, null);
-  assert.equal(split.blocks[0].text.startsWith(INJECTED_CONTEXT_TAGS.sourceOpen), true);
+  assert.equal(split.blocks[0].text.startsWith(`${INJECTED_CONTEXT_TAGS.sourceOpen.slice(0, -1)}`), true);
   assert.equal(split.blocks[0].text.endsWith(INJECTED_CONTEXT_TAGS.sourceClose), true);
-  assert.equal(split.blocks[1].text.startsWith(INJECTED_CONTEXT_TAGS.guidanceOpen), true);
+  assert.equal(split.blocks[1].text.startsWith(`${INJECTED_CONTEXT_TAGS.guidanceOpen.slice(0, -1)}`), true);
   assert.equal(split.blocks[1].text.endsWith(INJECTED_CONTEXT_TAGS.guidanceClose), true);
   // Lossless: the prefixed text is recoverable, block boundaries included.
   assert.equal(
@@ -118,7 +118,7 @@ test('the splitter removes only the prefix part on the structured path', () => {
 
 test('a guidance-only prefix is still recognised', () => {
   const produced = enhancedText('hi', { fields: ['senderName'], guidance: '轻松一点' }, {});
-  assert.equal(produced.startsWith(INJECTED_CONTEXT_TAGS.guidanceOpen), true);
+  assert.equal(produced.startsWith(`${INJECTED_CONTEXT_TAGS.guidanceOpen.slice(0, -1)}`), true);
   const split = splitLeadingInjectedContext(produced);
   assert.deepEqual(split.blocks.map((block) => block.form), ['instructions']);
   assert.equal(split.rest, 'hi');
@@ -322,7 +322,7 @@ test('the Host installer pairs context on the step it admits', async () => {
   assert.equal(result.messages[0].id, 'u1');
   assert.equal(result.messages[0].content[0].text, '一号');
   assert.equal(result.messages[0].source.rpcId, 'feishu-u1');
-  assert.equal(result.messages[1].content[0].text.startsWith(INJECTED_CONTEXT_TAGS.sourceOpen), true);
+  assert.equal(result.messages[1].content[0].text.startsWith(`${INJECTED_CONTEXT_TAGS.sourceOpen.slice(0, -1)}`), true);
 });
 
 test('the Host installer leaves a rejected or unrelated step alone', async () => {
