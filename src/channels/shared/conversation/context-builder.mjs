@@ -111,7 +111,8 @@ export function contextBlockFor(entry) {
     '>': '\\u003e',
     '&': '\\u0026',
   })[character]);
-  return `${INJECTED_CONTEXT_TAGS.contextOpen}${json}${INJECTED_CONTEXT_TAGS.contextClose}`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.contextOpen, json)}${json}`
+    + `${INJECTED_CONTEXT_TAGS.contextClose}`;
 }
 
 /**

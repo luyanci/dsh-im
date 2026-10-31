@@ -430,7 +430,8 @@ function sourceBlock(snapshot, sourceFactory) {
   const json = JSON.stringify(projected).replace(/[<>&]/g, (character) => ({
     '<': '\\u003c', '>': '\\u003e', '&': '\\u0026',
   })[character]);
-  return `${INJECTED_CONTEXT_TAGS.sourceOpen}${json}${INJECTED_CONTEXT_TAGS.sourceClose}`;
+  return `${signedOpenTag(INJECTED_CONTEXT_TAGS.sourceOpen, json)}${json}`
+    + `${INJECTED_CONTEXT_TAGS.sourceClose}`;
 }
 
 function guidanceBlock(guidance) {
