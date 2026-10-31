@@ -39,7 +39,28 @@ test('every framing tag is removed, paired or stray', () => {
 });
 
 test('tags with attributes are removed', () => {
-  assert.equal(stripInjectedContextTags('<dsh_im_source note="x">body'), 'body');
+  assert.equal(stripInjectedContextTags('前 <dsh_im_source note="x"> 后'), '前  后');
+});
+
+test('an unclosed block at the head still loses its JSON payload', () => {
+  assert.equal(
+    stripInjectedContextTags('<dsh_im_source>{"senderId":"999"} 你说呢'),
+    '你说呢',
+  );
+  assert.equal(stripInjectedContextTags('<dsh_im_source>{"senderId":"999"}'), '');
+  assert.equal(
+    stripInjectedContextTags('&lt;dsh_im_source&gt;{"senderId":"999"} 你说呢'),
+    '你说呢',
+  );
+  assert.equal(
+    stripInjectedContextTags('<dsh_im_source>{"a":{"b":1}} 尾巴'),
+    '尾巴',
+  );
+});
+
+test('an unclosed block without JSON loses its first line only', () => {
+  assert.equal(stripInjectedContextTags('<dsh_im_source>第一行\n第二行'), '第二行');
+  assert.equal(stripInjectedContextTags('<dsh_im_source>body'), '');
 });
 
 test('lookalike tag names and ordinary markup are left alone', () => {

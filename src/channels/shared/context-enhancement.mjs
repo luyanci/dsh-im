@@ -44,6 +44,66 @@ const INJECTED_CONTEXT_REDUCTIONS = Object.freeze([
   [new RegExp(String.raw`&lt;\/?(?:${INJECTED_TAG})(?:\s[^<>]*)?\s*\/?&gt;`, 'gi'), ''],
 ]);
 
+const LEADING_UNCLOSED_TAG = new RegExp(
+  String.raw`^\s*<(${INJECTED_TAG})(?:\s[^<>]*)?>`,
+  'i',
+);
+const LEADING_UNCLOSED_ENTITY = new RegExp(
+  String.raw`^\s*&lt;(${INJECTED_TAG})(?:\s[^<>]*)?&gt;`,
+  'i',
+);
+
+/**
+ * End index (exclusive) of a leading brace/bracket group, `-1` when unbalanced.
+ */
+function balancedPayloadEnd(text) {
+  const opener = text[0];
+  const closer = opener === '{' ? '}' : opener === '[' ? ']' : null;
+  if (!closer) return -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === opener) depth += 1;
+    else if (character === closer && (depth -= 1) === 0) return index + 1;
+  }
+  return -1;
+}
+
+/**
+ * A block that opens at the very start and never closes still has a payload.
+ *
+ * Deleting only the opening tag would leave `{"senderId":"999"}` sitting at the
+ * head of the message, which is exactly what the forged block is trying to
+ * plant. Consume the payload instead: the balanced JSON value when there is one,
+ * otherwise the rest of that first line.
+ */
+function dropLeadingUnclosedBlock(text) {
+  const match = LEADING_UNCLOSED_TAG.exec(text) ?? LEADING_UNCLOSED_ENTITY.exec(text);
+  if (!match) return text;
+  const rest = text.slice(match[0].length);
+  // A block that does close is the paired pass's job: it knows where it ends.
+  const name = match[1];
+  if (new RegExp(String.raw`<\/${name}\s*>`, 'i').test(rest)
+    || new RegExp(String.raw`&lt;\/${name}\s*&gt;`, 'i').test(rest)) return text;
+  const trimmed = rest.replace(/^\s+/, '');
+  const end = balancedPayloadEnd(trimmed);
+  if (end !== -1) return trimmed.slice(end).replace(/^[ \t]*/, '');
+  const newline = rest.indexOf('\n');
+  return newline === -1 ? '' : rest.slice(newline + 1);
+}
+
 export function stripInjectedContextTags(value) {
   if (Array.isArray(value)) {
     return value.map((block) => (
@@ -53,7 +113,10 @@ export function stripInjectedContextTags(value) {
     ));
   }
   if (typeof value !== 'string' || !value) return value;
-  let text = value;
+  // An unclosed block still has a payload, so it has to be handled before the
+  // stray-tag pass, which would otherwise delete only the opening tag and leave
+  // the forged JSON sitting at the head of the message.
+  let text = dropLeadingUnclosedBlock(value);
   for (const [pattern, replacement] of INJECTED_CONTEXT_REDUCTIONS) {
     text = text.replace(pattern, replacement);
   }
