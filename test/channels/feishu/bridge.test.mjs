@@ -11358,7 +11358,7 @@ test('step push on: a reply-referenced turn reaches the harness with rich prompt
   );
   assert.equal(
     askPrompt.filter((block) => (
-      typeof block?.text === 'string' && block.text.includes('<dsh_im_reply_to>')
+      typeof block?.text === 'string' && /<dsh_im_reply_to(?:\s[^<>]*)?>/.test(block.text)
     )).length,
     1,
     'exactly one reply-reference block is built for the turn',

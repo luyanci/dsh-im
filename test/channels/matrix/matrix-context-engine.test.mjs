@@ -15,7 +15,7 @@ const MAIN_KEY = `group:room:${ROOM}`;
 
 /** Read the context block bodies out of one prompt, in arrival order, as the splitter would. */
 function contextBlockBodies(text) {
-  return [...text.matchAll(/<dsh_im_context>([\s\S]*?)<\/dsh_im_context>/g)]
+  return [...text.matchAll(/<dsh_im_context[^>]*>([\s\S]*?)<\/dsh_im_context>/g)]
     .map(([, body]) => JSON.parse(body));
 }
 

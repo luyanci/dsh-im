@@ -59,6 +59,11 @@ async function eventually(predicate) {
   assert.fail('Expected message processing did not finish');
 }
 
+/** Produced prefixes carry a signature attribute; comparisons ignore it. */
+function withoutSignature(text) {
+  return typeof text === 'string' ? text.replace(/ sig="[^"]*"/gu, '') : text;
+}
+
 function sourceOf(content) {
   const text = Array.isArray(content) ? content[0].text : content;
   const match = /^<dsh_im_source[^>]*>(.*?)<\/dsh_im_source>/su.exec(text);
@@ -413,7 +418,7 @@ for (const channel of CHANNELS) {
       if (Array.isArray(original)) {
         assert.equal(enhanced[0].type, 'text');
         assert.deepEqual(enhanced.slice(1), original);
-        assert.match(enhanced[0].text, /<dsh_im_source_guidance>\nUse only provided fields\./);
+        assert.match(enhanced[0].text, /<dsh_im_source_guidance[^>]*>\nUse only provided fields\./);
       } else {
         assert.ok(enhanced.endsWith(`\n\n${original}`));
       }
@@ -587,7 +592,12 @@ for (const channel of CHANNELS) {
       const current = fixture(channel, { contextEnhancement: provider(channel, config) });
       await current.bridge.accept(current.event(1, 'hello'));
       if (config.direct.fields.length) assert.deepEqual(sourceOf(current.prompts[0]), { channel });
-      else if (config.direct.guidance) assert.equal(current.prompts[0], '<dsh_im_source_guidance>\ncustom\n</dsh_im_source_guidance>\n\nhello');
+      else if (config.direct.guidance) {
+        assert.equal(
+          withoutSignature(current.prompts[0]),
+          '<dsh_im_source_guidance>\ncustom\n</dsh_im_source_guidance>\n\nhello',
+        );
+      }
       else {
         assert.equal(current.prompts[0], 'hello');
         assert.equal(current.calls.some(([operation]) => operation === 'renameSession'), false);
