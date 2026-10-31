@@ -103,7 +103,36 @@ function sha256(bytes) {
   return digest;
 }
 
-const encoder = new TextEncoder();
+/**
+ * UTF-8 bytes without TextEncoder: the settings UI bundle is evaluated in a
+ * sandbox that does not provide it, and the composer must stay synchronous.
+ */
+function utf8Bytes(text) {
+  const bytes = [];
+  for (const character of text) {
+    let code = character.codePointAt(0);
+    if (code < 0x80) {
+      bytes.push(code);
+      continue;
+    }
+    if (code < 0x800) {
+      bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+      continue;
+    }
+    if (code < 0x10000) {
+      bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+      continue;
+    }
+    code -= 0x10000;
+    bytes.push(
+      0xf0 | (code >> 18),
+      0x80 | ((code >> 12) & 0x3f),
+      0x80 | ((code >> 6) & 0x3f),
+      0x80 | (code & 0x3f),
+    );
+  }
+  return Uint8Array.from(bytes);
+}
 
 /** HMAC-SHA256 over a UTF-8 string. */
 function hmacSha256(keyBytes, messageBytes) {
@@ -146,7 +175,7 @@ const SIGNATURE_LENGTH = 22;
 /** Sign one block body exactly as it will appear between the tags. */
 export function signContextBody(body) {
   if (typeof body !== 'string') return '';
-  return base64url(hmacSha256(SECRET, encoder.encode(body))).slice(0, SIGNATURE_LENGTH);
+  return base64url(hmacSha256(SECRET, utf8Bytes(body))).slice(0, SIGNATURE_LENGTH);
 }
 
 /** Compare in constant time so a mismatch position does not leak. */
