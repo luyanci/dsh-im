@@ -48,6 +48,7 @@ export const TOKEN_BOT_ENDPOINTS = Object.freeze({
   setAccessPolicy: 'bot.access-policy.set',
   setAlias: 'bot.alias.set',
   setThinkingTraces: 'bot.thinking-traces.set',
+  setFinalEdit: 'bot.final-edit.set',
   setThinkingCadence: SET_THINKING_CADENCE_ENDPOINT,
   setSendLimit: SET_SEND_LIMIT_ENDPOINT,
 });

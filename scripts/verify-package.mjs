@@ -188,6 +188,11 @@ for (const marker of ['bot.conversation-directory.set', 'bot.conversation-direct
     throw new Error(`conversation-directory RPC endpoint missing from Host or Client bundle: ${marker}`);
   }
 }
+// The switch and its endpoint must agree: a Client bundle without the endpoint
+// leaves the settings row clickable but inert.
+if (!host.includes('bot.final-edit.set') || !client.includes('bot.final-edit.set')) {
+  throw new Error('final-edit RPC endpoint missing from Host or Client bundle');
+}
 for (const marker of ['bot.context-enhancement.set', '<dsh_im_source>', '<dsh_im_source_guidance>']) {
   if (!host.includes(marker) || !client.includes(marker)) {
     throw new Error(`context-enhancement marker missing from Host or Client bundle: ${marker}`);

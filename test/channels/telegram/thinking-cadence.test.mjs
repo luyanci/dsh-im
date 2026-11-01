@@ -400,6 +400,9 @@ test('cadence and send-limit RPC saves preserve each other across reload and run
 test('the combined settings card saves cadence and the send limit through their own endpoints', async (t) => {
   const { act, create } = await import('react-test-renderer');
   const { TELEGRAM_ENDPOINTS } = await import('../../../plugin-src/client/channels/telegram/api.js');
+  // The client map must carry the endpoint the settings row calls, or the
+  // switch renders but silently does nothing.
+  assert.equal(TELEGRAM_ENDPOINTS.setFinalEdit, 'bot.final-edit.set');
   const calls = [];
   const reloads = [];
   let renderer;
@@ -428,6 +431,9 @@ test('the combined settings card saves cadence and the send limit through their 
     renderer.root.findByProps({ type: 'number' }).props.onChange({ target: { value: '12' } });
   });
   await act(async () => { renderer.root.findByProps({ type: 'number' }).props.onBlur(); });
+  await act(async () => {
+    renderer.root.findAllByProps({ type: 'checkbox' })[2].props.onChange({ target: { checked: true } });
+  });
   assert.deepEqual(calls, [
     { endpoint: 'bot.thinking-cadence.set', payload: {
       botId: 'telegram_test', thinkingNumbering: true, thinkingIntervalSeconds: 7,
@@ -436,8 +442,9 @@ test('the combined settings card saves cadence and the send limit through their 
       botId: 'telegram_test', thinkingNumbering: false, thinkingIntervalSeconds: 7,
     } },
     { endpoint: 'bot.send-limit.set', payload: { botId: 'telegram_test', sendLimitPerMinute: 12 } },
+    { endpoint: 'bot.final-edit.set', payload: { botId: 'telegram_test', editFinalAnswer: true } },
   ]);
-  assert.deepEqual(reloads, [{ silent: true }, { silent: true }, { silent: true }]);
+  assert.deepEqual(reloads, [{ silent: true }, { silent: true }, { silent: true }, { silent: true }]);
 });
 
 test('paced traces waiting for the per-chat budget still settle before the final answer', async (t) => {
