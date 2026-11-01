@@ -156,3 +156,22 @@ test('unknown endpoints still fall through to the token-bot handler', async () =
   assert.equal(result.ok, false);
   assert.notEqual(result.error.code, 'bad-request');
 });
+
+test('the final-edit endpoint validates its payload and stores the toggle', async () => {
+  assert.equal(TELEGRAM_ENDPOINTS.setFinalEdit, 'bot.final-edit.set');
+  const stub = controller();
+  stub.setEditFinalAnswer = async (botId, value) => {
+    stub.calls.push({ botId, value });
+    return true;
+  };
+  const handler = createTelegramRpcHandler(stub);
+
+  const ok = await handler(TELEGRAM_ENDPOINTS.setFinalEdit, { botId: BOT, editFinalAnswer: true });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(stub.calls.at(-1), { botId: BOT, value: true });
+
+  const malformed = await handler(TELEGRAM_ENDPOINTS.setFinalEdit, { botId: BOT, editFinalAnswer: 'yes' });
+  assert.equal(malformed.ok, false);
+  const extra = await handler(TELEGRAM_ENDPOINTS.setFinalEdit, { botId: BOT, editFinalAnswer: true, extra: 1 });
+  assert.equal(extra.ok, false);
+});

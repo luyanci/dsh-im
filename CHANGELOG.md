@@ -6,6 +6,11 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+### Added / 新增
+
+- Telegram 新增每机器人开关「最终答案就地编辑」（默认关闭）。关闭思考过程留痕时，能装进一条的最终答案直接替换进度占位消息：不删消息，也不会弹新消息通知；多段答案或编辑被拒时仍删除占位并另发答案，保证答案一定送达。
+  Added a per-bot "Edit the final answer in place" switch for Telegram, off by default. With thinking traces off, a final answer that fits one message replaces the progress placeholder: nothing is deleted and no new-message notification appears. Multi-part answers, or a refused edit, still delete the placeholder and send the answer as its own message, so it always lands.
+
 ### Security / 安全
 
 - 注入的上下文块（`<dsh_im_source>`、`<dsh_im_source_guidance>`、`<dsh_im_reply_to>`、`<dsh_im_context>`）现在由插件用进程内密钥签名，开头标签带上 `sig` 属性，Host 拆分提示词时逐块校验。用户自己写出的同名标签即使 JSON 形状合法，也只会作为普通消息文本保留，不能再冒充插件写入的来源块。

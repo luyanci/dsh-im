@@ -668,3 +668,124 @@ test('E1: an explicit thinkingTraces=false is persisted and reported, absent mea
   assert.equal(on.bots[0].thinkingTraces, true);
   assert.equal(configStore.get(botId).thinkingTraces, true);
 });
+
+test('E2: editFinalAnswer is off unless configured, persisted and reported', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-im-final-edit-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const configStore = await new TelegramConfigStore(join(directory, 'config.json')).load();
+  const runtimeRecords = [];
+  const controller = new TelegramController({
+    credentials: credentials(),
+    configStore,
+    inspectToken: async () => ({
+      platformId: '123456789', name: 'Harness Telegram', username: 'harness_bot',
+    }),
+    createRuntime: async ({ botId, config }) => {
+      runtimeRecords.push({ botId, config: structuredClone(config) });
+      return {
+        status: { ready: true, connectionState: 'connected', harnessReachable: true, lastCheckedAt: 10 },
+        async start() {},
+        async stop() {},
+      };
+    },
+  });
+  const bound = await controller.bindCredentials({ token: TOKEN });
+  const botId = bound.bots[0].botId;
+  assert.equal(bound.bots[0].editFinalAnswer, false, 'absent config means off');
+
+  const on = await controller.setEditFinalAnswer(botId, true);
+  assert.equal(on.bots[0].editFinalAnswer, true);
+  assert.equal(configStore.get(botId).editFinalAnswer, true);
+  assert.equal(runtimeRecords.at(-1).config.editFinalAnswer, true, 'the runtime restarts with the new config');
+
+  const off = await controller.setEditFinalAnswer(botId, false);
+  assert.equal(off.bots[0].editFinalAnswer, false);
+  assert.equal(configStore.get(botId).editFinalAnswer, false);
+});
+
+test('F1: an opted-in single-message answer replaces the progress placeholder', async () => {
+  const calls = [];
+  const client = new TelegramBotClient({
+    api: {
+      sendMessage: (payload) => {
+        calls.push({ method: 'sendMessage', payload });
+        return { message_id: 3001 };
+      },
+      editMessageText: (payload) => {
+        calls.push({ method: 'editMessageText', payload });
+        return true;
+      },
+      deleteMessage: () => assert.fail('the placeholder must not be deleted'),
+      sendRichMessage: () => assert.fail('the answer must stay in the placeholder'),
+    },
+    logger: quietLogger,
+    editFinalAnswer: true,
+  });
+  const stream = await client.openDeliveryStream({
+    chatId: 42, chatType: 'private', replyToMessageId: 7,
+  });
+  const result = await stream.finish({ kind: 'text', text: '## answer', format: 'markdown' });
+
+  assert.deepEqual(calls.map(({ method }) => method), ['sendMessage', 'editMessageText']);
+  assert.equal(calls[1].payload.messageId, 3001);
+  assert.match(calls[1].payload.richMessage.markdown, /answer/u);
+  assert.equal(result.deliveryOutcome, 'sent');
+  assert.deepEqual(result.providerMessageIds, ['3001']);
+});
+
+test('F2: an opted-in multi-message answer still deletes the placeholder and sends', async () => {
+  const calls = [];
+  const client = new TelegramBotClient({
+    api: {
+      sendMessage: (payload) => {
+        calls.push({ method: 'sendMessage', payload });
+        return { message_id: 4000 + calls.length };
+      },
+      editMessageText: () => assert.fail('a multi-part answer cannot be an edit'),
+      deleteMessage: (payload) => {
+        calls.push({ method: 'deleteMessage', payload });
+        return true;
+      },
+    },
+    logger: quietLogger,
+    editFinalAnswer: true,
+  });
+  const stream = await client.openDeliveryStream({ chatId: 42, chatType: 'private' });
+  const answer = '中'.repeat(5_000);
+  const result = await stream.finish({ kind: 'text', text: answer, format: 'plain' });
+
+  assert.deepEqual(calls.map(({ method }) => method), ['sendMessage', 'deleteMessage', 'sendMessage', 'sendMessage']);
+  assert.equal(result.deliveryOutcome, 'sent');
+});
+
+test('F3: a refused final edit falls back to deleting the placeholder and sending', async () => {
+  const calls = [];
+  const client = new TelegramBotClient({
+    api: {
+      sendMessage: (payload) => {
+        calls.push({ method: 'sendMessage', payload });
+        return { message_id: 5001 + calls.length };
+      },
+      editMessageText: (payload) => {
+        calls.push({ method: 'editMessageText', payload });
+        throw Object.assign(new Error('Bad Request: message is not modified'), { status: 400 });
+      },
+      deleteMessage: () => {
+        calls.push({ method: 'deleteMessage', payload: null });
+        return true;
+      },
+      sendRichMessage: (payload) => {
+        calls.push({ method: 'sendRichMessage', payload });
+        return { message_id: 6001 };
+      },
+    },
+    logger: quietLogger,
+    editFinalAnswer: true,
+  });
+  const stream = await client.openDeliveryStream({ chatId: 42, chatType: 'private' });
+  const result = await stream.finish({ kind: 'text', text: '**answer**', format: 'markdown' });
+
+  assert.deepEqual(calls.map(({ method }) => method), ['sendMessage', 'editMessageText', 'deleteMessage', 'sendRichMessage']);
+  assert.equal(result.deliveryOutcome, 'sent');
+  assert.deepEqual(result.providerMessageIds, ['6001']);
+});

@@ -88,6 +88,8 @@ export function createTokenChannelApi(channel, connectionSummary, {
       thinkingIntervalSeconds: normalizeThinkingIntervalSeconds(value.thinkingIntervalSeconds),
       // Absent or unusable falls back to the same default the backend applies.
       sendLimitPerMinute: normalizeSendLimitPerMinute(value.sendLimitPerMinute),
+      // Opt-in: off by default keeps the notifying delete-and-send reply.
+      editFinalAnswer: value.editFinalAnswer === true,
       ...(Object.hasOwn(value, 'accessPolicy')
         ? { accessPolicy: normalizeAccessPolicy(value.accessPolicy) }
         : {}),

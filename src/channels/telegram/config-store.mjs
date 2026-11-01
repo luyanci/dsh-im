@@ -77,8 +77,9 @@ function normalizeTelegramBotExtension(value) {
   const hasThinkingNumbering = Object.hasOwn(value, 'thinkingNumbering');
   const hasThinkingInterval = Object.hasOwn(value, 'thinkingIntervalSeconds');
   const hasSendLimit = Object.hasOwn(value, 'sendLimitPerMinute');
+  const hasEditFinalAnswer = Object.hasOwn(value, 'editFinalAnswer');
   if (!hasAccessMode && !hasAllowedUsers && !hasThinkingTraces && !hasGroupTriggers
-    && !hasThinkingNumbering && !hasThinkingInterval && !hasSendLimit) return {};
+    && !hasThinkingNumbering && !hasThinkingInterval && !hasSendLimit && !hasEditFinalAnswer) return {};
   try {
     const policy = normalizeTelegramAccessPolicy(value);
     return {
@@ -86,6 +87,9 @@ function normalizeTelegramBotExtension(value) {
       ...(hasAllowedUsers || hasAccessMode ? { allowedUsers: policy.allowedUsers } : {}),
       // Explicit field is kept; an absent field stays absent.
       ...(hasThinkingTraces ? { thinkingTraces: value.thinkingTraces === true } : {}),
+      // Final answer replaces the progress placeholder in place when it fits
+      // one message; off by default keeps the notifying delete-and-send path.
+      ...(hasEditFinalAnswer ? { editFinalAnswer: value.editFinalAnswer === true } : {}),
       // Per-group reply triggers; absent means "no rule configured".
       ...(hasGroupTriggers ? { groupTriggers: normalizeGroupTriggers(value.groupTriggers) } : {}),
       // Trace cadence: stored clamped, so a bad value never reaches the runtime.

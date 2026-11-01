@@ -107,6 +107,20 @@ export function ThinkingTracesSettings({
       setSaving(false);
     }
   };
+  const finalEditEndpoint = endpoints?.setFinalEdit;
+  const commitFinalEdit = async (editFinalAnswer) => {
+    if (typeof rpcCall !== 'function' || !finalEditEndpoint) return;
+    setSaving(true);
+    try {
+      const response = await rpcCall(finalEditEndpoint, { botId: account.botId, editFinalAnswer });
+      if (response && response.ok === false) throw new Error(response.error?.message ?? '请求失败');
+      await onChanged?.({ silent: true });
+    } catch {
+      // The stored value stays authoritative; the next reload shows it again.
+    } finally {
+      setSaving(false);
+    }
+  };
   return h('div', { className: 'dim-accountSettings' },
     h('h4', { className: 'dim-accountSettingsTitle' }, '会话行为'),
     h('label', { className: 'dim-accountSettingsRow' },
@@ -154,5 +168,17 @@ export function ThinkingTracesSettings({
       busy: Boolean(busy),
       saving,
       onCommit: commitSendLimit,
-    }));
+    }),
+    h('label', { className: 'dim-accountSettingsRow' },
+      h('span', { className: 'dim-accountSettingsText' },
+        h('span', { className: 'dim-accountSettingsLabel' }, '最终答案就地编辑'),
+        h('span', { className: 'dim-accountSettingsHelp' },
+          '答案能装进一条时，直接把进度占位消息改成答案；不删消息，也不会弹新消息通知。多段答案仍单独发送')),
+      h('input', {
+        type: 'checkbox',
+        className: 'dim-accountSettingsSwitch',
+        checked: account.editFinalAnswer === true,
+        disabled: Boolean(busy) || saving,
+        onChange: (event) => { void commitFinalEdit(event.target.checked); },
+      })));
 }

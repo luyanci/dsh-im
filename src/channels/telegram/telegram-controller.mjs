@@ -64,6 +64,8 @@ export class TelegramController extends TokenBotController {
           thinkingIntervalSeconds: normalizeThinkingIntervalSeconds(config?.thinkingIntervalSeconds),
           groupTriggers: normalizeGroupTriggers(config?.groupTriggers),
           sendLimitPerMinute: normalizeSendLimitPerMinute(config?.sendLimitPerMinute),
+          // Default OFF: the reply arrives as a new message, which notifies.
+          editFinalAnswer: config?.editFinalAnswer === true,
         };
       }),
     };
@@ -78,6 +80,14 @@ export class TelegramController extends TokenBotController {
     return this.updateBotConfig(botId, (config) => ({
       ...config,
       thinkingTraces: value === true,
+    }));
+  }
+
+  /** Persist the in-place final answer choice; the runtime restarts with it. */
+  async setEditFinalAnswer(botId, value) {
+    return this.updateBotConfig(botId, (config) => ({
+      ...config,
+      editFinalAnswer: value === true,
     }));
   }
 

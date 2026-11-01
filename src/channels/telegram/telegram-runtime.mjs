@@ -926,6 +926,7 @@ export class TelegramBotClient {
   #logger;
   #thinkingNumbering;
   #thinkingIntervalMs;
+  #editFinalAnswer;
 
   constructor({
     api,
@@ -933,6 +934,7 @@ export class TelegramBotClient {
     logger = console,
     thinkingNumbering = false,
     thinkingIntervalSeconds = 0,
+    editFinalAnswer = false,
   }) {
     this.#api = api;
     this.#signal = signal;
@@ -940,6 +942,9 @@ export class TelegramBotClient {
     // Read once: the runtime restarts whenever the owner changes either value.
     this.#thinkingNumbering = normalizeThinkingNumbering(thinkingNumbering);
     this.#thinkingIntervalMs = normalizeThinkingIntervalSeconds(thinkingIntervalSeconds) * 1_000;
+    // Opt-in: a one-message answer replaces the placeholder instead of arriving
+    // as a new notifying message.
+    this.#editFinalAnswer = editFinalAnswer === true;
   }
 
   async sendText(target, text) {
@@ -1171,10 +1176,11 @@ export class TelegramBotClient {
     return deliveryResult('text-fallback', providerMessageIds);
   }
 
-  /** Drop the progress placeholder before the answer is sent so the turn ends
-   *  with a notification instead of a silent edit. Best-effort: Telegram only
-   *  lets a bot delete its own messages for 48 hours, and a stale placeholder
-   *  must never cost the reader the answer that was already produced. */
+  /** Drop the progress placeholder before the answer is sent. Used when the
+   *  answer needs its own message (multi-part) or an in-place edit failed: a
+   *  stale placeholder must never cost the reader the answer that was already
+   *  produced. Best-effort: Telegram only lets a bot delete its own messages
+   *  for 48 hours. */
   async #deletePlaceholder(target, messageId) {
     try {
       await this.#api.deleteMessage({
@@ -1188,6 +1194,60 @@ export class TelegramBotClient {
         error,
       );
     }
+  }
+
+  /**
+   * Turn the progress placeholder itself into the answer when that answer fits
+   * one message: the reader keeps their place, nothing is deleted, and the turn
+   * ends without a second bubble. A multi-part answer, or an edit Telegram
+   * refuses, still takes the delete-and-send path — which is also the path that
+   * notifies the client that the turn is over.
+   */
+  async #finishDeliveryStream(target, messageId, block) {
+    if (!this.#editFinalAnswer) {
+      await this.#deletePlaceholder(target, messageId);
+      return this.#sendRich(target, block);
+    }
+    let fits = false;
+    try {
+      fits = block.format === 'plain'
+        ? splitTelegramRegularText(block.text).length === 1
+        : splitTelegramRichMarkdown(block.text).length === 1;
+    } catch {
+      fits = false;
+    }
+    if (fits) {
+      try {
+        if (block.format === 'plain') {
+          await this.#api.editMessageText({
+            chatId: target.chatId,
+            messageId,
+            text: block.text,
+            signal: this.#signal,
+          });
+        } else {
+          await this.#api.editMessageText({
+            chatId: target.chatId,
+            messageId,
+            richMessage: { markdown: toTelegramRichMarkdown(block.text) },
+            signal: this.#signal,
+          });
+        }
+        return deliveryResult(
+          block.format === 'plain' ? 'text-fallback' : 'telegram-rich-draft',
+          [String(messageId)],
+        );
+      } catch (error) {
+        this.#logger?.warn?.(
+          '[dsh-im:telegram] final placeholder edit failed; sending the answer instead:',
+          error,
+        );
+      }
+    }
+    await this.#deletePlaceholder(target, messageId);
+    return block.format === 'plain'
+      ? this.#sendPlain(target, block.text)
+      : this.#sendRich(target, block);
   }
 
   async #sendRich(target, block) {
@@ -1372,13 +1432,12 @@ export class TelegramBotClient {
     };
     stream = new TelegramDeliveryStream({
       update: (block) => pushProgress(block),
-      // The placeholder carries progress only: its last frame would be a silent
-      // edit, so the answer goes out as its own message and Telegram notifies
-      // the reader that the turn is over.
+      // A one-message answer replaces the placeholder in place; anything larger
+      // is sent as its own message so the client notifies the reader that the
+      // turn is over.
       finish: async (block) => {
         await drainHeld();
-        await this.#deletePlaceholder(target, messageId);
-        return this.#sendRich(target, block);
+        return this.#finishDeliveryStream(target, messageId, block);
       },
       fail: async (block) => {
         await drainHeld();
@@ -1393,8 +1452,9 @@ export class TelegramBotClient {
         held = null;
       },
       presentation: 'telegram-regular',
-      // Answer text is not mirrored into the placeholder: it is deleted before
-      // the real message goes out, so a preview would duplicate the reply.
+      // The answer text is not mirrored into the placeholder while the turn is
+      // running: the final edit writes it once, so live previews would only
+      // flicker the same words.
       previewAnswer: false,
       uniqueFrames: numbering,
       logger: this.#logger,
@@ -1839,6 +1899,8 @@ export class TelegramRuntime {
         // Trace frames are numbered and paced per bot; 0 seconds means no pacing.
         thinkingNumbering: this.#config?.thinkingNumbering,
         thinkingIntervalSeconds: this.#config?.thinkingIntervalSeconds,
+        // Opt-in per bot: replace the placeholder instead of a new message.
+        editFinalAnswer: this.#config?.editFinalAnswer === true,
       });
       this.#bridge = new TelegramHarnessBridge({
         bot: client,

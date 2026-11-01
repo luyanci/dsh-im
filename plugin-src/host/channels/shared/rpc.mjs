@@ -16,7 +16,12 @@ import {
   validAgentPresetPayload,
 } from './agent-preset-rpc.mjs';
 import { SET_MODEL_ENDPOINT, validModelPayload } from './model-setting-rpc.mjs';
-import { SET_THINKING_TRACES_ENDPOINT, validThinkingTracesPayload } from './thinking-traces-rpc.mjs';
+import {
+  SET_FINAL_EDIT_ENDPOINT,
+  SET_THINKING_TRACES_ENDPOINT,
+  validFinalEditPayload,
+  validThinkingTracesPayload,
+} from './thinking-traces-rpc.mjs';
 import { SET_THINKING_CADENCE_ENDPOINT, validThinkingCadencePayload } from './thinking-cadence-rpc.mjs';
 import { SET_SEND_LIMIT_ENDPOINT, validSendLimitPayload } from './send-limit-rpc.mjs';
 
@@ -33,6 +38,7 @@ export const TOKEN_BOT_ENDPOINTS = Object.freeze({
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
   setAlias: SET_ALIAS_ENDPOINT,
   setThinkingTraces: SET_THINKING_TRACES_ENDPOINT,
+  setFinalEdit: SET_FINAL_EDIT_ENDPOINT,
   setThinkingCadence: SET_THINKING_CADENCE_ENDPOINT,
   setSendLimit: SET_SEND_LIMIT_ENDPOINT,
 });
@@ -112,6 +118,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === TOKEN_BOT_ENDPOINTS.setThinkingTraces) {
     return validThinkingTracesPayload(payload)
       ? null : '请提交有效的思考过程留痕设置。';
+  }
+  if (endpoint === TOKEN_BOT_ENDPOINTS.setFinalEdit) {
+    return validFinalEditPayload(payload)
+      ? null : '请提交有效的就地编辑设置。';
   }
   if (endpoint === TOKEN_BOT_ENDPOINTS.setThinkingCadence) {
     return validThinkingCadencePayload(payload)
@@ -224,6 +234,9 @@ export function createTokenBotRpcHandler(controller, { channel }) {
       } else if (endpoint === TOKEN_BOT_ENDPOINTS.setThinkingTraces) {
         if (typeof controller.setThinkingTraces !== 'function') throw new Error('Thinking traces update is unavailable');
         value = await controller.setThinkingTraces(payload.botId, payload.thinkingTraces);
+      } else if (endpoint === TOKEN_BOT_ENDPOINTS.setFinalEdit) {
+        if (typeof controller.setEditFinalAnswer !== 'function') throw new Error('Final edit update is unavailable');
+        value = await controller.setEditFinalAnswer(payload.botId, payload.editFinalAnswer);
       } else if (endpoint === TOKEN_BOT_ENDPOINTS.setThinkingCadence) {
         if (typeof controller.setThinkingCadence !== 'function') throw new Error('Thinking trace cadence update is unavailable');
         value = await controller.setThinkingCadence(payload.botId, {
