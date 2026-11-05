@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 import { ConnectionError } from '../../connection-error.js';
-import { h, localizeText } from '../../i18n.js';
+import { h, localizeTemplate, localizeText } from '../../i18n.js';
 
 const IMAGE_FORMATS = ['auto', 'base64', 'url', 'file'];
 
@@ -46,6 +46,15 @@ export function OneBotCredentialPanel({ busy, error, onSubmit, onCancel }) {
   h('h3', { id: headingId, className: 'dim-credentialTitle' }, '接入 OneBot 账号'),
   h('p', { className: 'dob-hint' },
     '协议端（SnowLuma / NapCat / Lagrange）连接本机的反向 WebSocket；插件只负责收与发。'),
+  // This channel is the odd one out: nothing is dialled out, so the owner has to
+  // configure the other side first. Show the exact address to paste.
+  h('ol', { className: 'dob-steps' },
+    h('li', null, '安装并启动协议端（SnowLuma / NapCat / Lagrange），登录要对接的 QQ。'),
+    h('li', null, localizeTemplate('在协议端开启「反向 WebSocket」，地址填 {address}。', {
+      address: `ws://127.0.0.1:${port.trim() || '6700'}/onebot/v11/ws`,
+    })),
+    h('li', null, '协议端的访问令牌与本页填同一个，两边都留空表示不校验。'),
+    h('li', null, '保存后协议端会自动连上；QQ 里 @ 它、或引用它的话即可对话。')),
   h('form', { className: 'dim-credentialForm dob-form', onSubmit: submit },
     h('label', { className: 'dim-credentialField' },
       h('span', null, 'QQ 号'),

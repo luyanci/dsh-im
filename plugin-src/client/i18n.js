@@ -975,6 +975,14 @@ const EN = Object.freeze({
   '群号': 'Group number',
   '填写数字 QQ 号': 'Enter the numeric QQ number',
   '群成员 QQ 号': 'Member QQ number',
+  '安装并启动协议端（SnowLuma / NapCat / Lagrange），登录要对接的 QQ。':
+    'Install and start the protocol end (SnowLuma / NapCat / Lagrange) and sign in to the QQ account you want to connect.',
+  '在协议端开启「反向 WebSocket」，地址填 {address}。':
+    'Enable the reverse WebSocket in the protocol end and point it at {address}.',
+  '协议端的访问令牌与本页填同一个，两边都留空表示不校验。':
+    'Use the same access token on both sides; leaving both empty disables the check.',
+  '保存后协议端会自动连上；QQ 里 @ 它、或引用它的话即可对话。':
+    'Once saved, the protocol end connects by itself. Mention the bot in QQ, or reply to one of its messages, to talk to it.',
   '填入 QQ 号与本机监听端口，再把协议端的反向 WebSocket 指向该地址。':
     'Enter the QQ number and a local listening port, then point the protocol end at that address.',
   '监听地址 {address}': 'Listening on {address}',

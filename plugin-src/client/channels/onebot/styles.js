@@ -18,6 +18,7 @@ const CSS = String.raw`
 .dob-hint { margin: 6px 0 0; color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; line-height: 1.6; }
 .dob-error { margin: 6px 0 0; color: var(--dsw-alias-state-error-primary, #d54941); font-size: 12px; line-height: 1.6; }
 .dob-setup { display: grid; gap: 10px; }
+.dob-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 12px; line-height: 1.7; }
 .dob-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .dob-formActions { grid-column: 1 / -1; }
 @container (max-width: 680px) {
