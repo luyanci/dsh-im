@@ -36,12 +36,27 @@
 - **心跳**：WS ping/pong，默认 30 秒，两次未响应即断开；协议端自己负责重连，我们只需接受新连接；
 - **限制**：单帧入站 100 MiB、出站缓冲 16 MiB、并发 128 条连接、动作超时 30 秒；重复的活动通道会被 409 拒掉，跨账号帧直接断连。
 
-仍需探针确认的只剩两点：
+### 2.1 实测结论（M0，SnowLuma 实测）
 
-1. **图片段给什么形态**（`base64://` / `file://` / http url），以及带不带 `url` 字段；
-2. **心跳是否同时发 `meta_event.lifecycle`**，以及 `message_sent` 在 `reportSelfMessage: true` 时的实际字段。
+用 `scripts/onebot-probe.mjs`（只监听 `127.0.0.1`，落 `.onebot-probe.jsonl`）在真实账号上跑过一轮，以下是观测事实，不是推测：
 
-**第 0 步验收**：`scripts/onebot-probe.mjs` 起一个只监听 `127.0.0.1` 的反向 WS，把握手头、每条事件、图片段形态、ping/pong 全部落到 `.onebot-probe.jsonl`；配合一次 `send_group_msg` 还能验证自环回显。用例已用假客户端自测通过。在此之前不写接入代码。
+| 观测项 | 实际结果 |
+|---|---|
+| 握手头 | `X-Self-ID`、`X-Client-Role: Universal`、UA `OneBot/11`；无 token 时 `authForm: none`，连接正常 |
+| 元事件 | `meta_event.lifecycle`（`connect`、`enable`，带 `status.online/good`）与 `meta_event.heartbeat` 都会来；实测 WS ping 间隔约 26s |
+| 私聊消息 | `message_type: private`、`sub_type: friend`，带 `user_id`、`message_seq` |
+| 群消息 | `message_type: group`、`sub_type: normal`，带 `group_id`、`group_name`、`message_seq` |
+| `sender` | `{user_id, nickname, card, role, sex, age}`；`role` 取 `owner` / `admin` / `member`，可直接用于权限判断 |
+| `@` 段 | `{"type":"at","data":{"qq":"2951316926"}}`，`qq` 是**字符串**，与 `self_id` 比较要转字符串 |
+| `reply` 段 | `{"type":"reply","data":{"id":"392264416"}}`，只有 id；**`get_msg` 能取回完整消息**（含 `message` 数组、`sender`、`real_id`），引用内容靠它补 |
+| 图片段 | `{"type":"image","data":{"file":"DD49F613….jpg","url":"https://multimedia.nt.qq.com.cn/download?…"}}` —— `file` 是**裸资源名**，内容是**带签名的 url**；入站必须下载 url，不能把 `file` 当路径，也不是 base64 |
+| `message_id` | **符号不稳定**：同一轮的私聊/群聊里既有负数也有正数，且响应里另有 `real_id`。一律当不透明字符串 |
+| 自发回显 | 协议端 `reportSelfMessage: false` 时**不会**收到自己发的消息；`send_private_msg` 只返回 `{"message_id":…}` |
+| 其他事件 | `notice` 里有 `notify/input_status`（`status_text: "对方正在输入..."`），可用于原生呈现的输入状态 |
+
+`get_login_info` 返回 `{user_id, nickname}`，可用于设置卡的「当前账号」显示。
+
+**第 0 步验收**：已完成。`scripts/onebot-probe.mjs` 具备 `--send-user` / `--send-group` / `--get-msg`，可随时复跑；输出含真实 QQ 号，`.gitignore` 已排除。
 
 ## 3 分层
 
@@ -90,7 +105,7 @@ i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-c
 | `text` | 正文 | 原样，不加包装（framing 归生产方） |
 | `at` | 唤醒判定 | `qq === self_id` 才算被叫到；`qq === 'all'` 单独处理 |
 | `reply` | 引用关系 | 段里只有 `id`，要 `get_msg` 补内容；补不到就标 `unavailableReason` |
-| `image` | 产物 | 上行统一 base64（兼容最好）；下行优先 base64，能力允许再走 http |
+| `image` | 产物 | 入站按 `data.url` 下载（签名链接，会过期，随即缓存）；`data.file` 是裸资源名，不可当路径。出站待 M1 用 `send_group_msg` 实测 |
 | `face` / `mface` | 表情占位 | 渲染成 `[表情]` / `[表情 名称]`，不当作正文 |
 | `forward` / `node` | 暂不支持 | 第一版落占位 `[合并转发]`，Deferred |
 
@@ -105,6 +120,7 @@ i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-c
 | 禁言 | `restrictChatMember` | `set_group_ban` |
 | 合并转发读取 | 读不到 | `get_forward_msg` 可读（Deferred） |
 | reaction | 有 | 无 |
+| 输入中状态 | 无 API | 有 `notice/input_status` 可读；本地呈现待定 |
 | 图片限制 | 10MB 左右 | 依协议端，风控更敏感 |
 
 **「最终答案就地编辑」这个开关在 OneBot 上不适用**：QQ 没有编辑能力，只能删占位再新发。设置卡里该开关对该渠道隐藏或置灰，并在 `CHANGELOG` 注明，别让用户以为坏了。

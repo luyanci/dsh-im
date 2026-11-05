@@ -10,8 +10,9 @@
  *   - heartbeat: WS ping frames or a meta_event?
  *
  * Usage:
- *   node tools/onebot-probe.mjs [--port 6700] [--path /onebot/v11/ws] [--token T]
- *                               [--send-group 12345 --send-text "hi"]
+ *   node scripts/onebot-probe.mjs [--port 6700] [--path /onebot/v11/ws] [--token T]
+ *                                 [--send-user QQ | --send-group GID] [--send-text "hi"]
+ *                                 [--get-msg MESSAGE_ID]
  *
  * Nothing here is shipped; it is a scratch tool for the design phase.
  */
@@ -28,7 +29,9 @@ const port = Number(arg('port', 6700))
 const path = arg('path', '/onebot/v11/ws')
 const token = arg('token', '')
 const sendGroup = arg('send-group', '')
+const sendUser = arg('send-user', '')
 const sendText = arg('send-text', '')
+const getMsg = arg('get-msg', '')
 
 const logFile = arg('log', '.onebot-probe.jsonl')
 const started = new Date().toISOString()
@@ -135,13 +138,13 @@ wss.on('connection', (ws, req) => {
       messageId: frame.message_id ?? '',
       segments: segments.map((s) => s?.type),
       images,
-      rawPrefix: JSON.stringify(frame).slice(0, 240),
+      raw: frame,
     })
     console.log(`[event] ${type} ${frame.message_type ?? ''} group=${frame.group_id ?? '-'} segs=${segments.map((s) => s?.type).join(',') || '-'}`)
     if (images.length > 0) console.log('        image segments:', JSON.stringify(images))
 
     if (type === 'meta_event') {
-      record('meta-event', { detail: frame.meta_event_type, rawPrefix: JSON.stringify(frame).slice(0, 200) })
+      record('meta-event', { detail: frame.meta_event_type, raw: frame })
     }
   })
 
@@ -150,17 +153,30 @@ wss.on('connection', (ws, req) => {
     console.log(`[closed] code=${code}`)
   })
 
-  if (sendGroup && sendText) {
+  if (getMsg || sendText) {
     setTimeout(async () => {
       const info = await action(ws, 'get_login_info', {})
-      console.log('[get_login_info]', JSON.stringify(info))
-      const sent = await action(ws, 'send_group_msg', {
-        group_id: Number(sendGroup),
-        message: [{ type: 'text', data: { text: sendText } }],
-      })
-      console.log('[send_group_msg]', JSON.stringify(sent))
-      console.log('Watch whether this same message comes back as message_sent.')
-    }, 1500)
+      console.log('[get_login_info]', JSON.stringify(info?.data ?? info))
+      if (getMsg) {
+        const got = await action(ws, 'get_msg', { message_id: Number(getMsg) })
+        console.log('[get_msg]', JSON.stringify(got?.data ?? got).slice(0, 600))
+      }
+      if (sendText && sendUser) {
+        const sent = await action(ws, 'send_private_msg', {
+          user_id: Number(sendUser),
+          message: [{ type: 'text', data: { text: sendText } }],
+        })
+        console.log('[send_private_msg]', JSON.stringify(sent?.data ?? sent))
+        console.log('Watch whether this same message comes back as message_sent.')
+      } else if (sendText && sendGroup) {
+        const sent = await action(ws, 'send_group_msg', {
+          group_id: Number(sendGroup),
+          message: [{ type: 'text', data: { text: sendText } }],
+        })
+        console.log('[send_group_msg]', JSON.stringify(sent?.data ?? sent))
+        console.log('Watch whether this same message comes back as message_sent.')
+      }
+    }, 2000)
   }
 })
 
