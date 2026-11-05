@@ -16,6 +16,7 @@ import { OneBotHarnessClient } from '../../../../src/channels/onebot/onebot-harn
 import { OneBotStateStore } from '../../../../src/channels/onebot/onebot-state-store.mjs';
 import { OneBotRuntime } from '../../../../src/channels/onebot/onebot-runtime.mjs';
 import { listAgentPresetCatalog } from '../../../../src/channels/shared/agent-preset.mjs';
+import { listModelCatalog } from '../../../../src/channels/shared/model-setting.mjs';
 import {
   BotWorkspaceStore,
   createBotWorkspaceScope,
@@ -111,6 +112,8 @@ export async function createProductionController(ctx, config = {}, internals = {
     workspaces,
     stateFor,
     agentPresetCatalog,
+    // Without a model catalog the settings panel renders an empty model list.
+    modelCatalog: options => listModelCatalog(harness, options),
   });
   await controller.initialize();
   return {
