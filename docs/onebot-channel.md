@@ -10,9 +10,10 @@
 
 - 反向 WebSocket 接入，协议端主动连我们；
 - 群聊与私聊的文本、@、引用、图片、表情（`face`/`mface`）；
-- 触发模式（mention / all）、白名单、命令门、占位消息、会话绑定、投递目标；
-- 禁言（`set_group_ban`）、撤回（`delete_msg`）、群成员信息；
+- 触发模式（mention / all）、白名单、命令门、会话绑定、投递目标；
 - 连接状态上报与重连。
+
+**不做管理动作**：禁言、踢人、撤回、改群名片这些不放进通道，交给独立的管理 API caller（见 §7.1）。通道只负责收与发。
 
 第一版不做什么（Deferred，留接口）：
 
@@ -83,7 +84,7 @@ Host 侧：
 |---|---|
 | `src/channels/onebot/onebot-connection.mjs` | 反向 WS 服务端：只监听 `127.0.0.1`、校验 token、记录连接元数据（`X-Self-ID`、`X-Client-Role`）、重连与状态 |
 | `src/channels/onebot/onebot-runtime.mjs` | 事件 → 语义消息；自环过滤；段解析（`@`/`reply`/`image`/`face`） |
-| `src/channels/onebot/onebot-api.mjs` | `send_group_msg`、`send_private_msg`、`get_msg`、`get_group_member_info`、`delete_msg`、`set_group_ban` |
+| `src/channels/onebot/onebot-api.mjs` | 只含收发所需：`send_group_msg`、`send_private_msg`、`get_msg`、`get_login_info`。管理动作不在这里（§7.1） |
 | `src/channels/onebot/onebot-bridge.mjs` | 接 `text-harness-bridge.mjs`，实现渠道侧的「发送一条消息」与「能力探测」 |
 | `src/channels/onebot/config-store.mjs` / `state-store.mjs` | 与 `qq`、`telegram` 同构 |
 | `plugin-src/host/channels/onebot/{index.mjs,production.mjs,rpc.mjs}` | `apply()` 接线，照 `plugin-src/host/channels/qq/` |
@@ -139,8 +140,8 @@ i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-c
 | 能力 | Telegram | OneBot (QQ) |
 |---|---|---|
 | 消息编辑（原位改） | 有，`editMessageText` | **没有**（见 §6.1，OneBot 走静默模式） |
-| 撤回 | `deleteMessage` | `delete_msg` |
-| 禁言 | `restrictChatMember` | `set_group_ban` |
+| 撤回 | `deleteMessage`（`tg.py`） | `delete_msg`（caller） |
+| 禁言 | `restrictChatMember`（由工作区 `tg.py` 调） | `set_group_ban`（由工作区 caller 调，见 §7.1） |
 | 合并转发读取 | 读不到 | `get_forward_msg` 可读（Deferred） |
 | reaction | 有 | 无 |
 | 输入中状态 | 无 API | 有 `notice/input_status` 可读；第一版不呈现 |
@@ -171,6 +172,28 @@ OneBot 渠道**不参与进度呈现**，与 Telegram 的占位/编辑那套彻�
 - 与现有渠道同一条链路：`stripInjectedContextTags` 剥离用户手写的上下文块 → 块签名校验 → `AGENTS.md` 1.5 兜底；
 - 转发消息带 `[转发自 …]` 前缀，转发里的 @ 不唤醒（同 `AGENTS.md` 1.3）；
 - 禁言沿用 1.2 的规则：主人 / 管理员 / 自己不可禁，时长上限 5 分钟。
+
+### 7.1 与管理 API 的边界
+
+通道只做收与发；群管理（禁言、踢人、撤回、改名片、全员禁言、点赞）不进入 dsh-im，放在**工作区里的独立 caller**，与现在 Telegram 的做法保持一致——`tools/tg.py` 一直是直接打 Bot API，插件本身不提供禁言工具。
+
+QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启用多种适配器：
+
+| 适配器 | 默认端口 | 用途 |
+|---|---|---|
+| `wsClients` | 连我们 6700 | dsh-im 通道：反向 WS 收事件、发消息 |
+| `httpServers` | 3000 | 管理 caller 走 HTTP API 调动作 |
+| `wsServers` | 3001 | 备选：caller 连这个 WS 发动作 |
+
+所以两条链路互不干扰：通道断线不影响管理 caller，反之亦然。
+
+落地形态（与 Telegram 对称）：
+
+- 新工作区里放 `tools/qq.py`，直接调 SnowLuma 的 HTTP API（`POST /set_group_ban` 等），token 用 `httpServers.accessToken`；
+- 配一个 `qq-moderation` skill，规则沿用 `AGENTS.md` 1.2：默认 3 分钟、上限 5 分钟、先嘴回一次才动手、群主/管理员/自己不可碰；
+- 只读动作（`get_group_member_info`、`get_group_member_list`）也走 caller，通道侧不保留。
+
+**安全**：`httpServers` / `wsServers` 默认监听 `0.0.0.0`，本机部署必须改成 `127.0.0.1`；token 用自动生成的那个，不要和反向 WS 的 token 复用。
 
 ## 8 测试
 
