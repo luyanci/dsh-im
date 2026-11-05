@@ -162,3 +162,17 @@ test('a listener that cannot bind surfaces as a bot error, not a crash', async (
   assert.match(status.bots[0].error.message, /EADDRINUSE/);
   assert.equal(status.bots[0].listening, false);
 });
+
+test('two accounts cannot share one listener port', async (t) => {
+  const { controller } = await setup();
+  t.after(() => controller.close());
+  await controller.addBot({ selfId: SELF_ID, port: 6830 });
+  await assert.rejects(
+    () => controller.addBot({ selfId: '2058282593', port: 6830 }),
+    (error) => error.code === 'onebot-port-in-use' && /6830/.test(error.message),
+  );
+  // Moving the first account onto a free port is allowed.
+  const [first] = controller.status().bots;
+  const moved = await controller.setSettings(first.botId, { port: 6831 });
+  assert.equal(moved.bots.find(bot => bot.botId === first.botId).port, 6831);
+});

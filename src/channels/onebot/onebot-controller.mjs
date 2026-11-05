@@ -108,12 +108,26 @@ export class OneBotController {
    * Save a QQ account and start listening for it. `accessToken` is optional: an
    * empty token means the protocol end is trusted by loopback alone.
    */
+  /**
+   * Two accounts cannot share one port: the second listener would fail to bind
+   * only after it was saved, which looks like a crash rather than a conflict.
+   */
+  #assertPortFree(port, botId = null) {
+    if (!Number.isInteger(port)) return;
+    const clash = this.#configStore.list().find((config) => config.botId !== botId && config.port === port);
+    if (clash === undefined) return;
+    const error = new Error(`端口 ${port} 已被 QQ ${clash.selfId} 使用，每个账号需要独立端口。`);
+    error.code = 'onebot-port-in-use';
+    throw error;
+  }
+
   async addBot({ selfId, accessToken, name, ...settings } = {}) {
     if (this.#closed) throw new Error('OneBot controller is closed');
     const normalizedSelfId = cleanString(String(selfId ?? ''));
     if (!normalizedSelfId) throw new TypeError('A QQ number (selfId) is required');
     const identity = deriveOneBotBotIdentity(normalizedSelfId);
     const previous = this.#configStore.get(identity.botId);
+    this.#assertPortFree(normalizeOneBotSettings(settings).port, identity.botId);
     const token = cleanString(accessToken);
     if (token !== null && this.#credentials !== null) {
       await this.#credentials.set(identity.accessTokenRef, token);
@@ -153,6 +167,7 @@ export class OneBotController {
     if (this.#closed) throw new Error('OneBot controller is closed');
     const config = this.#configStore.get(botId);
     if (!config) throw new Error('Unknown OneBot bot');
+    if (patch.port !== undefined) this.#assertPortFree(patch.port, botId);
     const format = cleanString(patch.imageSendFormat);
     const saved = await this.#configStore.update(botId, {
       ...(patch.port === undefined ? {} : { port: patch.port }),
