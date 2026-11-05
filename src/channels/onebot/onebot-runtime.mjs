@@ -1,181 +1,258 @@
 /**
- * Turn OneBot v11 events into the semantic message the shared bridge consumes.
+ * The OneBot runtime: one reverse-WebSocket listener per bot.
  *
- * Shape mirrors `normalizeTelegramUpdate` on purpose: the bridge, the group
- * archive and the reply reference layer all read the same fields, so a channel
- * only has to fill them in.
- *
- * Measured facts this encodes (`docs/onebot-channel.md` §2.1):
- *   - `message_id` signs are unstable, so ids are opaque strings;
- *   - `at` carries `data.qq` as a string;
- *   - `reply` carries only `data.id`; resolving it needs a `get_msg` call, which
- *     the caller does when it resolves `replyTo`;
- *   - an `image` segment has a bare resource name in `data.file` and the bytes
- *     behind `data.url`, so the image is downloaded lazily on demand.
+ * It owns the transport and the bridge, nothing else. Inbound frames are
+ * normalized and handed to `bridge.accept`; outbound messages go through the bot
+ * client the bridge already holds. The protocol end owns reconnection, so a
+ * disconnect only flips the status back to "listening" and waits.
  */
-import { groupTriggerAddressed } from '../telegram/group-triggers.mjs';
+import { createOneBotApi } from './onebot-api.mjs';
+import { createOneBotBotClient } from './onebot-bot.mjs';
+import { createOneBotBridgeStatus, OneBotHarnessBridge } from './onebot-bridge.mjs';
+import { createOneBotServer } from './onebot-connection.mjs';
+import { normalizeOneBotEvent } from './onebot-normalize.mjs';
 
-/** Raised when the protocol end sends a shape the first version does not parse. */
-export class OneBotFormatError extends Error {
-  constructor(message, code) {
-    super(message);
-    this.name = 'OneBotFormatError';
-    this.code = code;
-  }
+/** Convenience factory; the class stays exported for callers that subclass. */
+export function createOneBotRuntime(options) {
+  return new OneBotRuntime(options);
 }
 
-const MEDIA_TYPES = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-};
-
-function mediaTypeOf(name) {
-  const extension = String(name ?? '').split('?')[0].split('.').pop()?.toLowerCase();
-  return MEDIA_TYPES[extension] ?? 'image/jpeg';
-}
-
-function isSelfEcho(event, selfId) {
-  if (event?.post_type === 'message_sent') return true;
-  const sender = event?.sender?.user_id ?? event?.user_id;
-  return selfId !== undefined && sender !== undefined && String(sender) === String(selfId);
-}
-
-/**
- * Lazy image source: `load()` downloads the bytes from the signed url the event
- * carries. The url expires, so it is never stored beyond the closure.
- */
-export function oneBotImageSource(segment, { loadImage } = {}) {
-  const data = segment?.data ?? {};
-  const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : undefined;
-  const file = typeof data.file === 'string' && data.file.length > 0 ? data.file : undefined;
-  if (url === undefined && file === undefined) return null;
-  const name = file ?? `onebot-image-${Date.now()}`;
+export function createOneBotRuntimeStatus() {
   return {
-    name,
-    mediaType: mediaTypeOf(name),
-    size: undefined,
-    load: (options) => {
-      if (url === undefined) throw new Error('OneBot image segment carries no download url');
-      if (typeof loadImage !== 'function') throw new Error('OneBot image downloader is unavailable');
-      return loadImage(url, options);
-    },
+    startedAt: null,
+    ready: false,
+    connectionState: 'idle',
+    listening: false,
+    selfId: null,
+    nickname: null,
+    harnessReachable: false,
+    lastConnectedAt: null,
+    lastError: null,
+    ...createOneBotBridgeStatus(),
   };
 }
 
-function renderSegment(segment, { selfId }) {
-  const type = segment?.type;
-  const data = segment?.data ?? {};
-  switch (type) {
-    case 'text':
-      return { text: String(data.text ?? '') };
-    case 'at': {
-      const qq = String(data.qq ?? '');
-      if (qq === String(selfId)) return { text: '', tagged: true };
-      const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : qq;
-      return { text: `@${name}` };
-    }
-    case 'reply':
-      return { text: '', replyToId: String(data.id ?? '') };
-    case 'image':
-      return { image: segment };
-    case 'face':
-      return { text: '[表情]' };
-    case 'mface': {
-      const summary = String(data.summary ?? '').trim();
-      return { text: summary.length > 0 ? `[表情 ${summary}]` : '[表情]' };
-    }
-    case 'forward':
-      // Deferred: merged forwards are read through get_forward_msg later.
-      return { text: '[合并转发]' };
-    default:
-      return { text: '' };
-  }
-}
+export class OneBotRuntime {
+  #config;
 
-/**
- * Normalize one event. Returns `null` for anything that is not a fresh inbound
- * message (meta events, notices, self echoes, malformed frames).
- */
-export function normalizeOneBotEvent(event, {
-  selfId,
-  groupTriggers,
-  loadImage,
-} = {}) {
-  if (event?.post_type !== 'message') return null;
-  if (isSelfEcho(event, selfId)) return null;
+  #harness;
 
-  const messageType = event?.message_type;
-  if (messageType !== 'group' && messageType !== 'private') return null;
+  #state;
 
-  if (typeof event.message === 'string') {
-    // The protocol end was configured with `messageFormat: string`. Parsing CQ
-    // codes is a deferred item; refuse loudly instead of dropping silently.
-    throw new OneBotFormatError(
-      'OneBot message arrived as a CQ string; configure messageFormat: array',
-      'string-message',
-    );
-  }
-  if (!Array.isArray(event.message)) return null;
+  #contextEnhancement;
 
-  const direct = messageType === 'private';
-  const chatId = direct ? event.user_id : event.group_id;
-  if (chatId === undefined || chatId === null) return null;
-  const senderId = event.user_id ?? event.sender?.user_id;
-  if (senderId === undefined || senderId === null) return null;
-  const messageId = event.message_id;
-  if (messageId === undefined || messageId === null) return null;
+  #accessPolicy;
 
-  let text = '';
-  let tagged = false;
-  let replyToId;
-  const images = [];
-  for (const segment of event.message) {
-    const rendered = renderSegment(segment, { selfId });
-    text += rendered.text ?? '';
-    if (rendered.tagged === true) tagged = true;
-    if (rendered.replyToId !== undefined) replyToId = rendered.replyToId;
-    if (rendered.image !== undefined) {
-      const source = oneBotImageSource(rendered.image, { loadImage });
-      if (source !== null) images.push(source);
-    }
+  #logger;
+
+  #replyTimeoutMs;
+
+  #createServer;
+
+  #createBridge;
+
+  #createApi;
+
+  #loadImage;
+
+  #status;
+
+  #server = null;
+
+  #bridge = null;
+
+  #session = null;
+
+  #abortController = null;
+
+  #stopped = true;
+
+  #starting = null;
+
+  #address = null;
+
+  constructor({
+    config,
+    harness,
+    state,
+    contextEnhancement,
+    accessPolicy,
+    logger = console,
+    replyTimeoutMs,
+    createServer = createOneBotServer,
+    createBridge = (options) => new OneBotHarnessBridge(options),
+    createApi = createOneBotApi,
+    loadImage,
+    status = createOneBotRuntimeStatus(),
+  }) {
+    if (!config?.botId) throw new TypeError('OneBot runtime needs a bot config');
+    if (!harness || !state) throw new TypeError('OneBot runtime needs the harness client and state store');
+    this.#config = config;
+    this.#harness = harness;
+    this.#state = state;
+    this.#contextEnhancement = contextEnhancement;
+    this.#accessPolicy = accessPolicy;
+    this.#logger = logger;
+    this.#replyTimeoutMs = replyTimeoutMs;
+    this.#createServer = createServer;
+    this.#createBridge = createBridge;
+    this.#createApi = createApi;
+    this.#loadImage = loadImage;
+    this.#status = status;
   }
 
-  const conversationId = String(chatId);
-  const key = `${direct ? 'direct' : 'group'}:${conversationId}`;
-  const addressed = direct || groupTriggerAddressed(groupTriggers, {
-    chatId: String(chatId),
-    senderId: String(senderId),
-    tagged,
-  });
+  get status() {
+    return structuredClone(this.#status);
+  }
 
-  return {
-    messageId: String(messageId),
-    senderId: String(senderId),
-    contextSource: () => ({
-      senderName: event.sender?.card
-        || event.sender?.nickname
-        || `QQ ${senderId}`,
-      senderUsername: undefined,
-      conversationTitle: direct ? undefined : event.group_name ?? undefined,
-      chatId: String(chatId),
-      threadId: undefined,
-    }),
-    senderIsBot: false,
-    senderRole: event.sender?.role ?? undefined,
-    kind: direct ? 'direct' : 'group',
-    conversationId,
-    content: text,
-    plainText: true,
-    images,
-    files: [],
-    ...(replyToId === undefined ? {} : { replyTo: { messageId: replyToId } }),
-    addressed,
-    replyTarget: direct
-      ? { userId: String(chatId) }
-      : { groupId: String(chatId) },
-    conversationKey: key,
-  };
+  get ready() {
+    return this.#status.ready === true;
+  }
+
+  /** The bound address after `start()` (`{ address, family, port }`). */
+  get address() {
+    return this.#address;
+  }
+
+  /** Start listening. Safe to call twice; the second call returns the same run. */
+  start() {
+    if (this.#starting !== null) return this.#starting;
+    this.#starting = this.#start().finally(() => {
+      this.#starting = null;
+    });
+    return this.#starting;
+  }
+
+  async #start() {
+    await this.stop();
+    this.#stopped = false;
+    this.#status.startedAt = new Date().toISOString();
+    this.#status.connectionState = 'connecting';
+    this.#status.lastError = null;
+    const controller = new AbortController();
+    this.#abortController = controller;
+
+    const bot = createOneBotBotClient({
+      getApi: () => (this.#session === null ? undefined : this.#createApi(this.#session)),
+      logger: this.#logger,
+      format: this.#config.imageSendFormat,
+    });
+    this.#bridge = this.#createBridge({
+      bot,
+      harness: this.#harness,
+      state: this.#state,
+      contextEnhancement: this.#contextEnhancement,
+      accessPolicy: this.#accessPolicy,
+      status: this.#status,
+      logger: this.#logger,
+      ...this.#replyTimeoutMs === undefined ? {} : { replyTimeoutMs: this.#replyTimeoutMs },
+      signal: controller.signal,
+    });
+
+    this.#server = this.#createServer({
+      host: this.#config.host,
+      port: this.#config.port,
+      path: this.#config.path,
+      accessToken: this.#config.accessToken ?? '',
+      selfIds: this.#config.selfIds ?? [],
+      logger: this.#logger,
+    });
+    this.#server.onState(({ kind, session }) => {
+      if (kind === 'connected') {
+        this.#session = session;
+        this.#status.ready = true;
+        this.#status.connectionState = 'connected';
+        this.#status.selfId = session.selfId;
+        this.#status.lastConnectedAt = new Date().toISOString();
+        void this.#describeAccount(session);
+        return;
+      }
+      if (this.#session === session) this.#session = null;
+      this.#status.ready = false;
+      this.#status.connectionState = 'listening';
+    });
+    this.#server.onFrame((frame) => this.#onFrame(frame));
+
+    try {
+      this.#address = await this.#server.listen();
+    } catch (error) {
+      this.#status.connectionState = 'failed';
+      this.#status.lastError = error instanceof Error ? error.message : String(error);
+      await this.stop();
+      throw error;
+    }
+    this.#status.listening = true;
+    this.#status.connectionState = 'listening';
+    // The harness check is advisory: a protocol end may connect before the Host
+    // is ready, and the bridge retries on its own.
+    if (typeof this.#harness?.ensureRunning === 'function') {
+      try {
+        await this.#harness.ensureRunning();
+        this.#status.harnessReachable = true;
+      } catch (error) {
+        this.#status.harnessReachable = false;
+        this.#status.lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    return this.status;
+  }
+
+  /** Fill the account name once connected; never fail a turn over it. */
+  async #describeAccount(session) {
+    try {
+      const api = this.#createApi(session);
+      const info = await api.getLoginInfo();
+      if (this.#session === session && typeof info?.nickname === 'string') {
+        this.#status.nickname = info.nickname;
+      }
+    } catch (error) {
+      this.#logger?.warn?.(`[dsh-im:onebot] get_login_info failed: ${error?.message ?? error}`);
+    }
+  }
+
+  #onFrame(frame) {
+    if (this.#stopped || this.#bridge === null) return;
+    let message;
+    try {
+      message = normalizeOneBotEvent(frame, {
+        selfId: this.#session?.selfId ?? this.#config.selfId,
+        groupTriggers: this.#config.groupTriggers,
+        loadImage: this.#loadImage,
+      });
+    } catch (error) {
+      // A CQ-string message is the one shape the first version refuses; say so
+      // once per frame instead of dropping it silently.
+      this.#logger?.warn?.(`[dsh-im:onebot] dropped a message: ${error?.message ?? error}`);
+      return;
+    }
+    if (!message) return;
+    void this.#bridge.accept(message).catch((error) => {
+      this.#logger?.warn?.(`[dsh-im:onebot] bridge rejected a message: ${error?.message ?? error}`);
+    });
+  }
+
+  async stop() {
+    this.#stopped = true;
+    this.#abortController?.abort();
+    this.#abortController = null;
+    const server = this.#server;
+    const bridge = this.#bridge;
+    this.#server = null;
+    this.#bridge = null;
+    this.#session = null;
+    this.#status.ready = false;
+    this.#status.listening = false;
+    this.#status.connectionState = 'idle';
+    this.#address = null;
+    try {
+      await server?.close();
+    } catch (error) {
+      this.#logger?.warn?.(`[dsh-im:onebot] listener close failed: ${error?.message ?? error}`);
+    }
+    await Promise.race([
+      bridge?.waitForIdle?.() ?? Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ]);
+    return this.status;
+  }
 }
