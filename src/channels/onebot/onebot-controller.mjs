@@ -1,0 +1,243 @@
+/**
+ * OneBot controller: one runtime per QQ account, plus the config surface the
+ * settings page talks to.
+ *
+ * Unlike the token channels there is nothing to dial and no identity to inspect
+ * up front: the protocol end connects to us. So adding a bot only stores its QQ
+ * number, listener settings and access-token reference, and the runtime sits in
+ * "listening" until that account shows up.
+ */
+import { deriveOneBotBotIdentity, normalizeOneBotSettings, ONEBOT_IMAGE_FORMATS } from './onebot-config-store.mjs';
+import { createOneBotRuntime, createOneBotRuntimeStatus } from './onebot-runtime.mjs';
+
+function cleanString(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function safeError(code, message) {
+  return Object.freeze({ code, message });
+}
+
+export class OneBotController {
+  #credentials;
+
+  #configStore;
+
+  #createRuntime;
+
+  #logger;
+
+  #runtimes = new Map();
+
+  #errors = new Map();
+
+  #revision = 0;
+
+  #closed = false;
+
+  constructor({
+    credentials,
+    configStore,
+    createRuntime = (options) => createOneBotRuntime(options),
+    harness,
+    state,
+    contextEnhancement,
+    accessPolicy,
+    loadImage,
+    logger = console,
+    replyTimeoutMs,
+  }) {
+    if (!configStore || typeof configStore.list !== 'function') {
+      throw new TypeError('OneBot requires a config store');
+    }
+    if (!harness || !state) throw new TypeError('OneBot requires the harness client and state store');
+    this.#credentials = credentials ?? null;
+    this.#configStore = configStore;
+    this.#createRuntime = createRuntime;
+    this.#logger = logger;
+    this.#harness = harness;
+    this.#state = state;
+    this.#contextEnhancement = contextEnhancement;
+    this.#accessPolicy = accessPolicy;
+    this.#loadImage = loadImage;
+    this.#replyTimeoutMs = replyTimeoutMs;
+  }
+
+  #harness;
+
+  #state;
+
+  #contextEnhancement;
+
+  #accessPolicy;
+
+  #loadImage;
+
+  #replyTimeoutMs;
+
+  /** Start every saved bot. A bot that fails keeps its error until restarted. */
+  async initialize() {
+    if (this.#closed) return this.status();
+    for (const config of this.#configStore.list()) {
+      if (this.#runtimes.has(config.botId)) continue;
+      try {
+        await this.#startRuntime(config);
+        this.#errors.delete(config.botId);
+      } catch (error) {
+        this.#errors.set(config.botId, safeError(
+          'listen-failed',
+          `无法监听 ${config.host}:${config.port}：${error?.message ?? error}`,
+        ));
+      }
+    }
+    this.#revision += 1;
+    return this.status();
+  }
+
+  /**
+   * Save a QQ account and start listening for it. `accessToken` is optional: an
+   * empty token means the protocol end is trusted by loopback alone.
+   */
+  async addBot({ selfId, accessToken, name, ...settings } = {}) {
+    if (this.#closed) throw new Error('OneBot controller is closed');
+    const normalizedSelfId = cleanString(String(selfId ?? ''));
+    if (!normalizedSelfId) throw new TypeError('A QQ number (selfId) is required');
+    const identity = deriveOneBotBotIdentity(normalizedSelfId);
+    const previous = this.#configStore.get(identity.botId);
+    const token = cleanString(accessToken);
+    if (token !== null && this.#credentials !== null) {
+      await this.#credentials.set(identity.accessTokenRef, token);
+    }
+    const saved = await this.#configStore.save({
+      ...normalizeOneBotSettings(settings),
+      selfId: normalizedSelfId,
+      name: cleanString(name) ?? undefined,
+      accessTokenRef: previous?.accessTokenRef ?? identity.accessTokenRef,
+    });
+    await this.#restart(saved.botId);
+    return this.status();
+  }
+
+  /** Remove the account, its listener and its stored token. */
+  async deleteBot(botId) {
+    if (this.#closed) throw new Error('OneBot controller is closed');
+    const config = this.#configStore.get(botId);
+    if (!config) throw new Error('Unknown OneBot bot');
+    await this.#stopRuntime(botId);
+    await this.#configStore.remove(botId);
+    if (config.accessTokenRef && this.#credentials !== null
+      && typeof this.#credentials.unset === 'function') {
+      // A token the credential store does not hold is not an error worth failing
+      // the removal over.
+      await Promise.resolve()
+        .then(() => this.#credentials.unset(config.accessTokenRef))
+        .catch(() => {});
+    }
+    this.#errors.delete(botId);
+    this.#revision += 1;
+    return this.status();
+  }
+
+  /** Persist settings and restart the listener with them. */
+  async setSettings(botId, patch = {}) {
+    if (this.#closed) throw new Error('OneBot controller is closed');
+    const config = this.#configStore.get(botId);
+    if (!config) throw new Error('Unknown OneBot bot');
+    const format = cleanString(patch.imageSendFormat);
+    const saved = await this.#configStore.update(botId, {
+      ...(patch.port === undefined ? {} : { port: patch.port }),
+      ...(patch.host === undefined ? {} : { host: patch.host }),
+      ...(patch.path === undefined ? {} : { path: patch.path }),
+      ...(format === null || !ONEBOT_IMAGE_FORMATS.includes(format) ? {} : { imageSendFormat: format }),
+      ...(patch.selfIds === undefined ? {} : { selfIds: patch.selfIds }),
+    });
+    await this.#restart(saved.botId);
+    return this.status();
+  }
+
+  /** Stop and start one bot's listener. */
+  async restartBot(botId) {
+    if (this.#closed) throw new Error('OneBot controller is closed');
+    await this.#restart(botId);
+    return this.status();
+  }
+
+  status() {
+    const bots = this.#configStore.list().map((config) => {
+      const runtime = this.#runtimes.get(config.botId);
+      const snapshot = runtime?.status ?? createOneBotRuntimeStatus();
+      return {
+        botId: config.botId,
+        selfId: config.selfId,
+        name: runtime?.status?.nickname ?? config.name,
+        host: config.host,
+        port: config.port,
+        path: config.path,
+        imageSendFormat: config.imageSendFormat,
+        selfIds: config.selfIds,
+        accessTokenConfigured: Boolean(config.accessTokenRef),
+        ...snapshot,
+        ...(this.#errors.has(config.botId) ? { error: this.#errors.get(config.botId) } : {}),
+      };
+    });
+    return { revision: this.#revision, ready: bots.some((bot) => bot.ready === true), bots };
+  }
+
+  async close() {
+    this.#closed = true;
+    for (const botId of [...this.#runtimes.keys()]) {
+      await this.#stopRuntime(botId);
+    }
+    this.#revision += 1;
+  }
+
+  async #restart(botId) {
+    await this.#stopRuntime(botId);
+    const config = this.#configStore.get(botId);
+    if (!config) return;
+    try {
+      await this.#startRuntime(config);
+      this.#errors.delete(botId);
+    } catch (error) {
+      this.#errors.set(botId, safeError(
+        'listen-failed',
+        `无法监听 ${config.host}:${config.port}：${error?.message ?? error}`,
+      ));
+    }
+    this.#revision += 1;
+  }
+
+  async #startRuntime(config) {
+    const accessToken = await this.#resolveAccessToken(config);
+    const runtime = this.#createRuntime({
+      config: { ...config, accessToken },
+      harness: this.#harness,
+      state: this.#state,
+      contextEnhancement: this.#contextEnhancement,
+      accessPolicy: this.#accessPolicy,
+      loadImage: this.#loadImage,
+      logger: this.#logger,
+      ...this.#replyTimeoutMs === undefined ? {} : { replyTimeoutMs: this.#replyTimeoutMs },
+    });
+    this.#runtimes.set(config.botId, runtime);
+    await runtime.start();
+    return runtime;
+  }
+
+  async #stopRuntime(botId) {
+    const runtime = this.#runtimes.get(botId);
+    if (!runtime) return;
+    this.#runtimes.delete(botId);
+    try {
+      await runtime.stop();
+    } catch (error) {
+      this.#logger?.warn?.(`[dsh-im:onebot] stop failed for ${botId}: ${error?.message ?? error}`);
+    }
+  }
+
+  async #resolveAccessToken(config) {
+    if (!config.accessTokenRef || this.#credentials === null) return '';
+    const resolved = await this.#credentials.resolve(config.accessTokenRef);
+    return typeof resolved?.value === 'string' ? resolved.value : '';
+  }
+}
