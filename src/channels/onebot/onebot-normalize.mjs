@@ -214,6 +214,7 @@ export function normalizeOneBotEvent(event, {
   return {
     messageId: String(messageId),
     senderId: String(senderId),
+    chatId: String(chatId),
     contextSource: () => ({
       senderName: event.sender?.card
         || event.sender?.nickname
@@ -239,9 +240,25 @@ export function normalizeOneBotEvent(event, {
         : { messageId: replyToId },
     }),
     addressed,
+    // Whether the message carried an explicit @ on us; a quoted reply to our own
+    // message counts as tagging too, which the runtime adds once it has resolved
+    // the quote author.
+    taggedAtSelf: tagged,
     replyTarget: direct
       ? { userId: String(chatId) }
       : { groupId: String(chatId) },
     conversationKey: key,
   };
+}
+
+/**
+ * A group reply to the bot's own message is the QQ equivalent of Telegram's
+ * "reply to the bot", which the shared trigger rules treat as tagging.
+ */
+export function oneBotAddressedForQuote(groupTriggers, { chatId, senderId }) {
+  return groupTriggerAddressed(groupTriggers, {
+    chatId: String(chatId),
+    senderId: String(senderId),
+    tagged: true,
+  });
 }

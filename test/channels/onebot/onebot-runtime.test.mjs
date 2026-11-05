@@ -214,6 +214,72 @@ test('a quoted reply resolves its content through get_msg', async (t) => {
   });
 });
 
+test('replying to the bot\'s own message wakes the model without an @', async (t) => {
+  const { runtime, bridge } = await startRuntime();
+  t.after(() => runtime.stop());
+  const ws = connect(runtime);
+  ws.on('message', (raw) => {
+    const frame = JSON.parse(raw.toString('utf8'));
+    if (frame.action === 'get_msg') {
+      // The quoted message was written by the bot itself.
+      ws.send(JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        data: {
+          message_id: Number(frame.params.message_id),
+          sender: { user_id: Number(SELF_ID), nickname: 'VC酱2号机', card: '' },
+          message: [{ type: 'text', data: { text: '我上一条回复' } }],
+        },
+        echo: frame.echo,
+      }));
+    }
+  });
+  await once(ws, 'open');
+  t.after(() => ws.close());
+
+  ws.send(groupMessage([
+    { type: 'reply', data: { id: '392264416' } },
+    { type: 'text', data: { text: '这句啥意思' } },
+  ]));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  assert.equal(bridge.accepted.length, 1);
+  assert.equal(bridge.accepted[0].addressed, true, 'a reply to the bot is a tag');
+  assert.equal(bridge.accepted[0].repliedToBot, true);
+});
+
+test('replying to someone else does not wake the model', async (t) => {
+  const { runtime, bridge } = await startRuntime();
+  t.after(() => runtime.stop());
+  const ws = connect(runtime);
+  ws.on('message', (raw) => {
+    const frame = JSON.parse(raw.toString('utf8'));
+    if (frame.action === 'get_msg') {
+      ws.send(JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        data: {
+          message_id: Number(frame.params.message_id),
+          sender: { user_id: 2058282593, nickname: 'LYX233', card: 'YC酱' },
+          message: [{ type: 'text', data: { text: '别人的话' } }],
+        },
+        echo: frame.echo,
+      }));
+    }
+  });
+  await once(ws, 'open');
+  t.after(() => ws.close());
+
+  ws.send(groupMessage([
+    { type: 'reply', data: { id: '392264416' } },
+    { type: 'text', data: { text: '这句啥意思' } },
+  ]));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  assert.equal(bridge.accepted.length, 1);
+  assert.equal(bridge.accepted[0].addressed, false);
+});
+
 test('stopping closes the listener and clears the status', async () => {
   const { runtime } = await startRuntime();
   const stopped = await runtime.stop();

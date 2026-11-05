@@ -10,7 +10,11 @@ import { createOneBotApi } from './onebot-api.mjs';
 import { createOneBotBotClient } from './onebot-bot.mjs';
 import { createOneBotBridgeStatus, OneBotHarnessBridge } from './onebot-bridge.mjs';
 import { createOneBotServer } from './onebot-connection.mjs';
-import { normalizeOneBotEvent, oneBotQuotedReference } from './onebot-normalize.mjs';
+import {
+  normalizeOneBotEvent,
+  oneBotAddressedForQuote,
+  oneBotQuotedReference,
+} from './onebot-normalize.mjs';
 
 /** Convenience factory; the class stays exported for callers that subclass. */
 export function createOneBotRuntime(options) {
@@ -222,6 +226,35 @@ export class OneBotRuntime {
     return oneBotQuotedReference(await api.getMsg(messageId));
   }
 
+  /**
+   * A reply to our own message is the QQ equivalent of Telegram's "reply to the
+   * bot", so it must wake the model under the mention trigger. The id alone does
+   * not say who wrote the quoted message, so resolve it first.
+   */
+  async #addressedForQuote(message) {
+    if (message.addressed || message.kind !== 'group') return message;
+    if (message.taggedAtSelf === true || typeof message.replyTo?.load !== 'function') return message;
+    let quoted;
+    try {
+      quoted = await message.replyTo.load({});
+    } catch (error) {
+      this.#logger?.warn?.(`[dsh-im:onebot] get_msg failed for ${message.replyTo.messageId}: ${error?.message ?? error}`);
+      return message;
+    }
+    const selfId = this.#session?.selfId ?? this.#config.selfId;
+    if (quoted === null || quoted === undefined || String(quoted.authorId ?? '') !== String(selfId)) {
+      return message;
+    }
+    if (oneBotAddressedForQuote(this.#config.groupTriggers, {
+      chatId: message.chatId,
+      senderId: message.senderId,
+    })) {
+      message.addressed = true;
+      message.repliedToBot = true;
+    }
+    return message;
+  }
+
   #onFrame(frame) {
     if (this.#stopped || this.#bridge === null) return;
     let message;
@@ -239,9 +272,11 @@ export class OneBotRuntime {
       return;
     }
     if (!message) return;
-    void this.#bridge.accept(message).catch((error) => {
-      this.#logger?.warn?.(`[dsh-im:onebot] bridge rejected a message: ${error?.message ?? error}`);
-    });
+    void this.#addressedForQuote(message)
+      .then((ready) => this.#bridge?.accept(ready))
+      .catch((error) => {
+        this.#logger?.warn?.(`[dsh-im:onebot] bridge rejected a message: ${error?.message ?? error}`);
+      });
   }
 
   async stop() {
