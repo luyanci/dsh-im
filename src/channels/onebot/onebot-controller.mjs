@@ -41,6 +41,7 @@ export class OneBotController {
     createRuntime = (options) => createOneBotRuntime(options),
     harness,
     state,
+    stateFor,
     contextEnhancement,
     accessPolicy,
     loadImage,
@@ -57,6 +58,9 @@ export class OneBotController {
     this.#logger = logger;
     this.#harness = harness;
     this.#state = state;
+    // Each account keeps its own conversation state (seen ids, queue recovery),
+    // so production passes a per-bot loader instead of one shared store.
+    this.#stateFor = typeof stateFor === 'function' ? stateFor : () => this.#state;
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
     this.#loadImage = loadImage;
@@ -66,6 +70,8 @@ export class OneBotController {
   #harness;
 
   #state;
+
+  #stateFor;
 
   #contextEnhancement;
 
@@ -209,10 +215,11 @@ export class OneBotController {
 
   async #startRuntime(config) {
     const accessToken = await this.#resolveAccessToken(config);
+    const state = await this.#stateFor(config.botId);
     const runtime = this.#createRuntime({
       config: { ...config, accessToken },
       harness: this.#harness,
-      state: this.#state,
+      state,
       contextEnhancement: this.#contextEnhancement,
       accessPolicy: this.#accessPolicy,
       loadImage: this.#loadImage,
