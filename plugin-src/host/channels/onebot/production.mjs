@@ -27,7 +27,7 @@ import { prepareBotWorkspace } from '../../../../src/channels/shared/default-wor
 import { harnessConnection } from '../../harness-connection.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
 import { createDeliveryAdapter } from '../../delivery-adapter.mjs';
-import { initialAccessPolicyFor } from '../shared/access-policy-production.mjs';
+import { accessPolicyProvider, initialAccessPolicyFor } from '../shared/access-policy-production.mjs';
 import { pluginPaths } from '../shared/production.mjs';
 
 const CHANNEL = 'onebot';
@@ -116,6 +116,13 @@ export async function createProductionController(ctx, config = {}, internals = {
         ...options,
         harness: workspaceScope.harness,
         state: workspaceScope.state,
+        // Both are read per turn, so a settings change applies to the next
+        // message without restarting the listener.
+        contextEnhancement: { botId, getSettings: () => workspaces.contextEnhancementFor(botId) },
+        accessPolicy: accessPolicyProvider(workspaces, botId, {
+          channel: CHANNEL,
+          config: options.config,
+        }),
       });
     },
     replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
