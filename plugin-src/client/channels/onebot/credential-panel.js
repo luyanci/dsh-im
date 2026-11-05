@@ -40,7 +40,9 @@ export function OneBotCredentialPanel({ busy, error, onSubmit, onCancel }) {
   };
 
   return h('section', {
-    className: 'ddt-card dim-surfaceCard dob-setup',
+    // Same shells as the shared credential panel, so the heading picks up the
+    // shared title styles instead of rendering as bare body text.
+    className: 'ddt-card dim-surfaceCard dim-credentialPanel',
     'aria-labelledby': headingId,
   },
   h('h3', { id: headingId, className: 'dim-credentialTitle' }, '接入 OneBot 账号'),
