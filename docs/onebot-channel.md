@@ -114,20 +114,24 @@ i18n：host 侧新增的 `t('中文')` 走 `src/channels/shared/i18n-{en,ru}/one
 | `at` | 唤醒判定 | `qq === self_id` 才算被叫到；`qq === 'all'` 单独处理 |
 | `reply` | 引用关系 | 段里只有 `id`，要 `get_msg` 补内容；补不到就标 `unavailableReason` |
 | `image` | 产物 | 入站按 `data.url` 下载（签名链接，会过期，随即缓存），`data.file` 是裸资源名不可当路径；出站见下 |
+| `file` / `video` / `record` | 产物（文件） | 有 `data.url` 才做得成延迟加载的文件源；没有就退化成 `[文件 名称]` 提示，而**只含文件的消息靠这条提示保证有内容**，否则整轮会被判成「没有输入」 |
 | `face` / `mface` | 表情占位 | 渲染成 `[表情]` / `[表情 名称]`，不当作正文 |
 | `forward` / `node` | 暂不支持 | 第一版落占位 `[合并转发]`，Deferred |
+
+**说话人**：群消息带 `speakerName`（群名片 → 昵称 → `QQ 号码`），bridge 把它拼在正文前形成 `名字: 内容`。缺这个字段时模型看到的是无署名文本，会把所有群友当成同一个人——踩过这个坑，改动时连测试一起看。
 
 自环：`post_type === 'message_sent'` 或 `sender.user_id === self_id` 一律丢弃，否则会自己跟自己说话。
 
 **这条必须自己兜住，不能指望协议端配置**：SnowLuma 有 `reportSelfMessage` 可以关掉上报，但其他 OneBot 实现不一定有这个开关，也不一定默认关闭（NapCat、Lagrange、go-cqhttp 等各家行为不一致），有的会推 `message_sent`，有的把自发消息混进 `message` 事件里。所以过滤放在我们这侧，按 `sender.user_id === self_id`（字符串比较）和 `post_type === 'message_sent'` 双条件丢弃；`reportSelfMessage` 只当作减少噪音的加分项。
 
-**出站图片的形态按协议端自适应**：`send_group_msg` 的 `image` 段在不同实现里接受的写法不同（`base64://`、`file://`、http url 各有一家不吃）。设置项 `imageSendFormat` 默认 `auto`，按 `base64 → url → file` 逐级试，一条成功就记住：
+**出站图片的形态按协议端自适应**：`send_group_msg` 的 `image` 段在不同实现里接受的写法不同（`base64://`、`file://`、http url 各有一家不吃）。设置项 `imageSendFormat` 默认 `auto`，先试 `base64`、失败再试 `url`，其中一种成功后本进程内记住，后续不再重试：
 
-- 缓存键用 `selfId + 协议端标识`（UA/版本），换协议端或换号自动重试；
+- 记忆只活在当前进程，重启后按 `auto` 重新探一遍；
 - 单个形态失败只记日志、换下一个形态，不打扰用户；
-- 全部失败才让整条消息失败，并把三种形态的错误一起上报。
+- 全部失败才让整条消息失败，并把各形态的错误一起上报；
+- `file` 形态不在自动序列里，只在显式配置 `imageSendFormat: file` 时使用——它要求协议端与 DSH 同机。
 
-`file://` 只对**协议端与 DSH 同机**有意义；跨机部署时自动跳过。
+**出站文件**没有消息段可用，走协议端的上传动作：群聊 `upload_group_file`、私聊 `upload_private_file`，`file` 传 `base64://`，`name` 是对方看到的文件名。文件在 QQ 侧表现为群文件/私聊文件，不是一条消息气泡——这是 QQ 的模型限制。
 
 ### 5.1 协议端差异清单
 
@@ -136,11 +140,13 @@ i18n：host 侧新增的 `t('中文')` 走 `src/channels/shared/i18n-{en,ru}/one
 | 分歧点 | SnowLuma 实测 | 其他实现 | 我们的策略 |
 |---|---|---|---|
 | 自发消息回显 | 可用 `reportSelfMessage: false` 关闭 | 不一定有开关，或默认上报 | 自己按 `sender.user_id` 过滤，不依赖配置 |
-| `message` 字段形态 | `array`（段数组，配置可选） | 有的是 CQ 码字符串 | 两者都解析：数组直接读，字符串走 CQ 码解码 |
-| 图片段 | `file` 裸资源名 + 签名 `url` | 可能是 `file://`、`base64://` 或仅 `file` | 按优先级 url → base64 → file 解析路径 |
+| `message` 字段形态 | `array`（段数组，配置可选） | 有的是 CQ 码字符串 | **只解析数组**；收到字符串抛 `string-message` 并写一条 warn，提示把协议端改成 `messageFormat: array`，不做 CQ 码解码（见 §9） |
+| 图片段 | `file` 裸资源名 + 签名 `url` | 可能是 `file://`、`base64://` 或仅 `file` | 入站只认签名 `url`（相对稳健且能带鉴权）；出站按 §5 的形态自适应 |
 | `message_id` | 正负号不稳定，另有 `real_id` | 有的会随平台变化 | 当不透明字符串，不参与数值运算 |
 | `@` 段 `qq` | 字符串 | 有实现给数字 | `String(qq) === String(self_id)` |
 | 角色 | `Universal` / `Api` / `Event` 拆分 | 只有单一连接 | 第一版要求 `Universal`，拆分留后置 |
+| 文件动作 | 有 `upload_group_file` / `upload_private_file` | 有的只支持本地路径，不接受 `base64://` | 一律发 `base64://`；失败时报出具体动作名，便于判断是哪个实现不支持 |
+
 
 ## 6 渠道能力差异
 
@@ -153,6 +159,18 @@ i18n：host 侧新增的 `t('中文')` 走 `src/channels/shared/i18n-{en,ru}/one
 | 输入中状态 | 无 API | 有 `notice/input_status` 可读；第一版不呈现 |
 | 进度/占位消息 | 占位 + 编辑 | **不发**，见 §6.1 |
 | 图片限制 | 10MB 左右 | 依协议端，风控更敏感 |
+
+**其它能力对照（都已实现，不是待办）**
+
+| 能力 | 落地情况 |
+|---|---|
+| 发文件 | 走 `upload_group_file` / `upload_private_file`；表现为群文件/私聊文件，不是消息气泡 |
+| 每 bot 设置 | 工作区、模型、Agent Preset、访问策略、别名，与其它渠道同一套面板（`createTokenChannelSettings`） |
+| 投递目标 | 支持，私聊填 QQ 号、群聊填群号；Web/定时任务发起的回合可以投递进 QQ 会话 |
+| 上下文增强 | 读工作区配置、每轮生效；**但没有群历史存储**，依赖历史的那部分效果弱于 Telegram |
+| 检查连接 | 发一条测试消息到最后一次会话的来源；没有会话时明确返回「暂无可测目标」而不是假装成功 |
+| 说话人标识 | 群消息带 `speakerName`，模型据此分辨谁在说话（见 §5） |
+| 端口 | 每账号一个端口，冲突在保存时拒绝（`onebot-port-in-use`）；`TimeWait` 会短暂占端口，重启后可能需等半分钟 |
 
 **「最终答案就地编辑」这个开关在 OneBot 上不适用**：QQ 没有编辑能力，只能删占位再新发。设置卡里该开关对该渠道隐藏或置灰，并在 `CHANGELOG` 注明，别让用户以为坏了。
 
@@ -205,16 +223,18 @@ QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启�
 
 ## 8 测试
 
-单测：
+单测（67 项，全在 `test/channels/onebot/`）：
 
-- 事件解析：群 / 私聊、`at` 判定、`reply` 段、`image` 三种形态、`face`；
-- 自环过滤：`message_sent` 与 `sender.user_id === self_id` 两条路径；
-- 图片编码：data URL / base64 / `file://` 输入统一转换；
-- 配置校验：端口、token 缺省、白名单格式。
+- `onebot-normalize`：群 / 私聊、`at` 判定、引用 loader、`get_msg` 形态映射、入站文件源与无 url 退化、说话人取值、自环两条路径、CQ 字符串报错；
+- `onebot-connection`：真回环 socket——握手校验、缺头拒绝、重复账号 4009、动作按 `echo` 配对、心跳超时断开；
+- `onebot-bot`：长文分段、图片形态自适应与记忆、artifact 描述符（`{bytes,fileName}`）、文件上传两条动作；
+- `onebot-config-store` / `onebot-controller`：默认值、令牌只存引用、异步 runtime 工厂、端口冲突拒绝、测试消息发送；
+- `onebot-runtime`：起真 WS 端跑到 bridge，覆盖引用解析、引用自己视为 tag、引用他人不唤醒；
+- `onebot-rpc`：端点白名单、严格载荷校验、`sendTest` 透传。
 
-集成：起一个假 WS 端（`node:ws`）模拟协议端，跑「收到消息 → 交给 harness → 发回」全链路，并覆盖断线重连。
+跨渠道守卫：设置页 tab 数、host 渠道数、投递/访问策略定义表都跟着加了 OneBot（`client-ui`、`client-delivery-settings`、`startup`）。
 
-不依赖真实 QQ 账号的用例必须占绝大多数，真实协议端只留手动验收。
+不依赖真实 QQ 账号的用例占绝大多数；真实协议端只留手动验收（结果见 §10.1）。
 
 ## 9 开放问题
 
@@ -228,16 +248,17 @@ QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启�
 | 是否保留「正在处理」占位与进度 | §6.1 定案：静默模式——不发占位、忽略状态更新、不删消息、最终答案单独发 |
 | 消息编辑能力怎么处理 | §6 定案：QQ 没有编辑，`编辑最终答案` 开关对该渠道隐藏，不做「发占位再删」的兼容路径 |
 | 白名单默认策略 | 与既有渠道一致：默认 `open`（`defaultCanExecuteCommands: true`），复用 `plugin-src/host/channels/shared/access-policy-production.mjs` 的 `openScope()`；白名单只作可选收窄 |
-| 出站图片形态 | 取决于协议端实现，所以不写死：设置项 `imageSendFormat`（`auto` 默认 / `base64` / `url` / `file`），`auto` 按 `base64 → url → file` 依次尝试，成功后按 `selfId + 协议端标识` 缓存结果 |
+| 出站图片形态 | 取决于协议端实现，所以不写死：设置项 `imageSendFormat`（`auto` 默认 / `base64` / `url` / `file`），`auto` 先试 `base64` 再试 `url`，成功后在进程内记住 |
+| CQ 码字符串 | 定案：**只解析数组**，收到字符串抛 `string-message` 并提示协议端改成 `messageFormat: array`，不写解码器 |
+| 端口与令牌默认值 | 定案：默认端口 `6700`、路径 `/onebot/v11/ws`、令牌可选且留空即不校验；每账号独立端口，冲突在保存时拒绝 |
 | 回合失败要不要吭声 | §6.1 定案：要发，复用 `message-failure.mjs` 的文案与错误码，作为普通新消息 |
 | 版本号 | `5.11.0`（渠道级新功能按 minor 递增） |
 
 ### 仍待决定
 
-1. **是否解析 CQ 码字符串**：SnowLuma 配 `messageFormat: array`，但换到其他实现可能给 CQ 码字符串。可以第一版只吃数组、遇到字符串明确报错，也可以顺手写个 CQ 码解码器（约 100 行）。
-2. **是否支持 `Api` / `Event` 拆分角色**：第一版只接 `Universal`，拆分的两条留后置。
-3. **合并转发与 `mface` 何时补**：第一版不做（Deferred），接口按「一条语义消息可含多段内容」预留；补的时点待定。
-4. **端口与令牌默认值**：默认 `6700` + 手动填写 token，还是随机生成一个写进设置。
+1. **是否支持 `Api` / `Event` 拆分角色**：第一版只接 `Universal`，拆分的两条留后置。
+2. **合并转发何时补**：`forward` 段现在只落 `[合并转发]` 占位，`get_forward_msg` 的内容还没读；`mface` 已按 `[表情 摘要]` 处理，不算待办。
+3. **入站文件名与扩展名**：协议端给的是裸资源名，扩展名不可靠，暂按 `content-type` 猜；要更准就得让协议端补 `summary`。
 
 ## 10 里程碑
 
@@ -264,6 +285,7 @@ QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启�
 | 引用 | ✅ 引用的原文能读到（走 `get_msg`）；引用自己时视为 @ |
 | 说话人 | ✅ 群消息带 `speakerName` 前缀，能认出是谁在说 |
 | 回合失败 | ✅ 在 DSH 里按停止，QQ 侧收到一条错误消息而不是静默 |
+| 出站文件 | ✅ 走 `upload_group_file`，QQ 侧表现为群文件（曾因没有 `sendFile` 报 `artifact-provider-unavailable`，已修） |
 | 多账号并发监听 | ✅ 两个号各占一个端口同时监听正常；端口冲突会在保存时直接拒绝（`onebot-port-in-use`），不会拖到绑定失败 |
 
 端口注意：`TimeWait` 会短暂占住刚释放的端口，重启监听若立刻报绑定失败，等半分钟左右再试。
