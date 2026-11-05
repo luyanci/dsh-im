@@ -4,6 +4,8 @@
 
 目标：新增第 10 个渠道 `onebot`，通过 OneBot v11 协议接入 QQ 生态，复用现有语义消息 / 会话路由 / 回合控制权那一层，不另起一套。
 
+> 命名注意：仓库里已有 `qq` 渠道，那是**腾讯官方 QQ 机器人 SDK**（`@tencent-connect/qqbot-nodejs`）的接入，与本渠道无关。本渠道叫 `onebot`，配置键、目录、日志前缀一律用 `onebot`，不要与 `qq` 混淆。
+
 ## 1 范围
 
 第一版做什么：
@@ -191,6 +193,8 @@ QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启�
 - 新工作区里放 `tools/qq.py`，直接调 SnowLuma 的 HTTP API（`POST /set_group_ban` 等），token 用 `httpServers.accessToken`；
 - 配一个 `qq-moderation` skill，规则沿用 `AGENTS.md` 1.2：默认 3 分钟、上限 5 分钟、先嘴回一次才动手、群主/管理员/自己不可碰；
 - 只读动作（`get_group_member_info`、`get_group_member_list`）也走 caller，通道侧不保留。
+
+**为什么不放在通道里**：现有 9 个渠道从头到尾没有调用过任何成员查询 API（Telegram 侧也只有工作区里的 `tg.py` 用 `getChatMember` 做禁言守卫），原因是发送者信息随事件一起来——我们实测的 `sender` 已经带 `user_id`、`nickname`、`card`、`role`（`owner` / `admin` / `member`）。访问控制看的是配置里的 id 列表，不是实时角色查询；群历史存档存的也是事件里给的值。所以通道不需要这两个动作，`onebot-api.mjs` 不实现它们。
 
 **安全**：`httpServers` / `wsServers` 默认监听 `0.0.0.0`，本机部署必须改成 `127.0.0.1`；token 用自动生成的那个，不要和反向 WS 的 token 复用。
 
