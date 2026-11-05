@@ -14,6 +14,34 @@ export function textSegment(text) {
   return { type: 'text', data: { text: String(text) } };
 }
 
+/**
+ * Download inbound media (images and files) from the signed url the protocol end
+ * attaches. Returns `{ data, mediaType? }`, the shape the inbound pipelines read.
+ */
+export async function downloadOneBotMedia(url, {
+  signal,
+  maxBytes = 20 * 1024 * 1024,
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    throw new TypeError('OneBot media download needs an http(s) url');
+  }
+  if (typeof fetchImpl !== 'function') throw new TypeError('No fetch implementation available');
+  const response = await fetchImpl(url, { signal });
+  if (!response.ok) throw new Error(`OneBot media download failed with HTTP ${response.status}`);
+  const declared = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`OneBot media is ${declared} bytes; the limit is ${maxBytes}`);
+  }
+  const data = Buffer.from(await response.arrayBuffer());
+  if (data.length > maxBytes) {
+    throw new Error(`OneBot media is ${data.length} bytes; the limit is ${maxBytes}`);
+  }
+  const mediaType = response.headers?.get?.('content-type')?.split(';', 1)[0].trim();
+  return { data, ...(mediaType ? { mediaType } : {}) };
+}
+
+
 /** An image segment. `file` is whatever the protocol end accepts; see §5. */
 export function imageSegment(file) {
   return { type: 'image', data: { file: String(file) } };

@@ -44,6 +44,31 @@ function isSelfEcho(event, selfId) {
 }
 
 /**
+ * Lazy file source for documents, videos and voice: `load()` downloads the bytes
+ * from the signed url the event carries. The url expires, so it is never stored
+ * beyond the closure.
+ */
+export function oneBotFileSource(segment, { loadFile } = {}) {
+  const data = segment?.data ?? {};
+  const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : undefined;
+  if (url === undefined) return null;
+  const declared = typeof data.file === 'string' && data.file.length > 0
+    ? data.file
+    : typeof data.name === 'string' && data.name.length > 0 ? data.name : undefined;
+  const name = declared ?? `onebot-file-${Date.now()}`;
+  const declaredMediaType = typeof data.mime_type === 'string' ? data.mime_type : undefined;
+  return {
+    name,
+    ...(declaredMediaType ? { mediaType: declaredMediaType } : mediaTypeOf(name) ? { mediaType: mediaTypeOf(name) } : {}),
+    size: Number.isFinite(Number(data.file_size)) ? Number(data.file_size) : undefined,
+    load: (options) => {
+      if (typeof loadFile !== 'function') throw new Error('OneBot file downloader is unavailable');
+      return loadFile(url, options);
+    },
+  };
+}
+
+/**
  * Lazy image source: `load()` downloads the bytes from the signed url the event
  * carries. The url expires, so it is never stored beyond the closure.
  */
@@ -81,6 +106,10 @@ function renderSegment(segment, { selfId }) {
       return { text: '', replyToId: String(data.id ?? '') };
     case 'image':
       return { image: segment };
+    case 'file':
+    case 'video':
+    case 'record':
+      return { file: segment };
     case 'face':
       return { text: '[表情]' };
     case 'mface': {
@@ -162,6 +191,7 @@ export function normalizeOneBotEvent(event, {
   selfId,
   groupTriggers,
   loadImage,
+  loadFile,
   loadReply,
 } = {}) {
   if (event?.post_type !== 'message') return null;
@@ -192,6 +222,7 @@ export function normalizeOneBotEvent(event, {
   let tagged = false;
   let replyToId;
   const images = [];
+  const files = [];
   for (const segment of event.message) {
     const rendered = renderSegment(segment, { selfId });
     text += rendered.text ?? '';
@@ -201,6 +232,19 @@ export function normalizeOneBotEvent(event, {
       const source = oneBotImageSource(rendered.image, { loadImage });
       if (source !== null) images.push(source);
     }
+    if (rendered.file !== undefined) {
+      // A file without a signed url cannot be fetched; keep the mention so the
+      // model still learns something arrived.
+      const source = oneBotFileSource(rendered.file, { loadFile: loadFile ?? loadImage });
+      if (source !== null) files.push(source);
+      else if (rendered.file?.data?.file) text += `[文件 ${rendered.file.data.file}]`;
+    }
+  }
+
+  // A document-only message still needs a prompt: the harness rejects a turn that
+  // carries neither text nor images, so name the attachment.
+  if (text.trim().length === 0 && images.length === 0 && files.length > 0) {
+    text = `[文件 ${files.map(source => source.name).join('、')}]`;
   }
 
   const conversationId = String(chatId);
@@ -231,7 +275,7 @@ export function normalizeOneBotEvent(event, {
     content: text,
     plainText: true,
     images,
-    files: [],
+    files,
     // QQ sends only the quoted id, so the reply pipeline resolves the content
     // later through `load`; without a loader the block degrades to the id alone.
     ...(replyToId === undefined ? {} : {

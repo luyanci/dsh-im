@@ -187,6 +187,29 @@ test('face and forward segments render as placeholders', () => {
   assert.equal(message.content, '[表情][合并转发]');
 });
 
+test('a document segment becomes a lazy file source with a prompt marker', () => {
+  const message = normalizeOneBotEvent(groupEvent([
+    { type: 'file', data: { file: '报告.pdf', url: 'https://multimedia.test/f?id=1', file_size: 2048 } },
+  ]), {
+    selfId: SELF_ID,
+    groupTriggers: triggers,
+    loadImage: async () => ({ data: Buffer.from('pdf') }),
+  });
+  assert.equal(message.files.length, 1);
+  assert.equal(message.files[0].name, '报告.pdf');
+  assert.equal(message.files[0].size, 2048);
+  // A document-only message still needs prompt content, or the turn is rejected.
+  assert.equal(message.content, '[文件 报告.pdf]');
+});
+
+test('a document without a download url is only mentioned', () => {
+  const message = normalizeOneBotEvent(groupEvent([
+    { type: 'file', data: { file: '无名.zip' } },
+  ]), { selfId: SELF_ID, groupTriggers: triggers });
+  assert.equal(message.files.length, 0);
+  assert.match(message.content, /无名\.zip/);
+});
+
 test('the sender display name prefers the group card', () => {
   const message = normalize(groupEvent([{ type: 'text', data: { text: 'x' } }]));
   assert.equal(message.contextSource().senderName, 'YC酱⁧~啾⁦');

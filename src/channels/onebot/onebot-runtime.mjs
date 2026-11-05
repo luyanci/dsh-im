@@ -6,7 +6,7 @@
  * client the bridge already holds. The protocol end owns reconnection, so a
  * disconnect only flips the status back to "listening" and waits.
  */
-import { createOneBotApi } from './onebot-api.mjs';
+import { createOneBotApi, downloadOneBotMedia } from './onebot-api.mjs';
 import { createOneBotBotClient } from './onebot-bot.mjs';
 import { createOneBotBridgeStatus, OneBotHarnessBridge } from './onebot-bridge.mjs';
 import { createOneBotServer } from './onebot-connection.mjs';
@@ -101,7 +101,9 @@ export class OneBotRuntime {
     this.#createServer = createServer;
     this.#createBridge = createBridge;
     this.#createApi = createApi;
-    this.#loadImage = loadImage;
+    // Inbound media comes from signed urls the protocol end attaches; without a
+    // downloader both images and files would fail at prompt preparation.
+    this.#loadImage = loadImage ?? downloadOneBotMedia;
     this.#status = status;
   }
 
@@ -263,6 +265,7 @@ export class OneBotRuntime {
         selfId: this.#session?.selfId ?? this.#config.selfId,
         groupTriggers: this.#config.groupTriggers,
         loadImage: this.#loadImage,
+        loadFile: this.#loadImage,
         loadReply: (messageId, options) => this.#loadReply(messageId, options),
       });
     } catch (error) {
