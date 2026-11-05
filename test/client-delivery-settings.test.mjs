@@ -134,7 +134,7 @@ test('delivery settings define the supported IM and email channel routes', () =>
   assert.equal(botSettingsTabsForChannel('feishu'), FEISHU_BOT_SETTINGS_TABS);
   assert.equal(DELIVERY_RPC_CHANNEL, '/dsh-im-delivery');
   assert.deepEqual(Object.keys(DELIVERY_CHANNEL_DEFINITIONS), [
-    'weixin', 'feishu', 'dingtalk', 'wecom', 'wecomApp', 'qq',
+    'weixin', 'feishu', 'dingtalk', 'wecom', 'wecomApp', 'qq', 'onebot',
     'slack', 'telegram', 'discord', 'whatsapp', 'imessage', 'email',
   ]);
   assert.deepEqual(

@@ -18,6 +18,7 @@ const CHANNELS = new Set([
   'wecom',
   'wecom-app',
   'qq',
+  'onebot',
   'slack',
   'telegram',
   'discord',
@@ -99,6 +100,15 @@ function normalizeRoute(channel, kind, route) {
     case 'qq':
       oneOf(kind, ['user', 'group']);
       return routeWithStrings(route, kind === 'user' ? ['userOpenId'] : ['groupOpenId']);
+    case 'onebot': {
+      oneOf(kind, ['user', 'group']);
+      const normalized = routeWithStrings(route, kind === 'user' ? ['userId'] : ['groupId']);
+      const value = kind === 'user' ? normalized.userId : normalized.groupId;
+      if (!/^\d{5,12}$/.test(value)) {
+        throw invalidTarget(`route.${kind === 'user' ? 'userId' : 'groupId'} must be a QQ number`);
+      }
+      return normalized;
+    }
     case 'slack': {
       oneOf(kind, ['conversation', 'thread']);
       const normalized = routeWithStrings(

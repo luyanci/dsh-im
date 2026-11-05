@@ -26,6 +26,7 @@ import {
 import { prepareBotWorkspace } from '../../../../src/channels/shared/default-workspace.mjs';
 import { harnessConnection } from '../../harness-connection.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
+import { createDeliveryAdapter } from '../../delivery-adapter.mjs';
 import { initialAccessPolicyFor } from '../shared/access-policy-production.mjs';
 import { pluginPaths } from '../shared/production.mjs';
 
@@ -131,6 +132,15 @@ export async function createProductionController(ctx, config = {}, internals = {
   await controller.initialize();
   return {
     controller,
+    // Delivery targets: lets a Web- or schedule-initiated answer land in a QQ
+    // chat without waiting for someone to speak first.
+    deliveryAdapter: createDeliveryAdapter({
+      channel: CHANNEL,
+      workspaces,
+      coreController,
+      stateFor,
+      dsBot: config.deliveryService?.dsBot,
+    }),
     close: () => controller.close(),
   };
 }

@@ -57,6 +57,8 @@ export class OneBotRuntime {
 
   #createApi;
 
+  #bot = null;
+
   #loadImage;
 
   #status;
@@ -143,6 +145,7 @@ export class OneBotRuntime {
       logger: this.#logger,
       format: this.#config.imageSendFormat,
     });
+    this.#bot = bot;
     this.#bridge = this.#createBridge({
       bot,
       harness: this.#harness,
@@ -280,6 +283,16 @@ export class OneBotRuntime {
       .catch((error) => {
         this.#logger?.warn?.(`[dsh-im:onebot] bridge rejected a message: ${error?.message ?? error}`);
       });
+  }
+
+  /** Send one proactive text (delivery targets) through this account's bot. */
+  async sendText(target, text) {
+    if (this.#bot === null || this.#stopped) {
+      const error = new Error('OneBot 账号未连接。');
+      error.code = 'onebot-bot-inactive';
+      throw error;
+    }
+    return this.#bot.sendText(target, text);
   }
 
   async stop() {

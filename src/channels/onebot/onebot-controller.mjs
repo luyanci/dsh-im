@@ -193,6 +193,28 @@ export class OneBotController {
     return { revision: this.#revision, ready: bots.some((bot) => bot.ready === true), bots };
   }
 
+  /**
+   * Proactive text for delivery targets: one new message to a QQ user or group,
+   * through the bot that owns this account. QQ has no reply threading.
+   */
+  async sendProactiveText(botId, target, text) {
+    const runtime = this.#runtimes.get(botId);
+    if (!runtime) {
+      const error = new Error('OneBot 机器人未在运行。');
+      error.code = 'onebot-bot-inactive';
+      throw error;
+    }
+    const recipient = target?.groupId !== undefined
+      ? { groupId: String(target.groupId) }
+      : target?.userId !== undefined ? { userId: String(target.userId) } : null;
+    if (recipient === null) {
+      const error = new Error('投递目标缺少 userId 或 groupId。');
+      error.code = 'onebot-target-invalid';
+      throw error;
+    }
+    return runtime.sendText(recipient, String(text ?? ''));
+  }
+
   async close() {
     this.#closed = true;
     for (const botId of [...this.#runtimes.keys()]) {

@@ -972,6 +972,9 @@ const EN = Object.freeze({
   '端口需在 1–65535 之间。': 'The port must be between 1 and 65535.',
   'OneBot 操作失败': 'The OneBot operation failed.',
   ' OneBot 反向 WebSocket': 'OneBot reverse WebSocket',
+  '群号': 'Group number',
+  '填写数字 QQ 号': 'Enter the numeric QQ number',
+  '群成员 QQ 号': 'Member QQ number',
   '填入 QQ 号与本机监听端口，再把协议端的反向 WebSocket 指向该地址。':
     'Enter the QQ number and a local listening port, then point the protocol end at that address.',
   '监听地址 {address}': 'Listening on {address}',

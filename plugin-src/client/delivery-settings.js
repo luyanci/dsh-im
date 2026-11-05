@@ -99,6 +99,15 @@ const CHANNEL_DEFINITIONS = Object.freeze({
       group: [{ key: 'groupOpenId', label: '群 Open ID', placeholder: '填写 group_openid' }],
     },
   },
+  // OneBot 没有平台侧 id，投递目标直接用 QQ 号：私聊填对方 QQ，群聊填群号。
+  onebot: {
+    label: 'OneBot',
+    kinds: [{ value: 'user', label: '私聊' }, { value: 'group', label: '群聊' }],
+    fields: {
+      user: [{ key: 'userId', label: 'QQ 号', placeholder: '2058282593', inputMode: 'numeric' }],
+      group: [{ key: 'groupId', label: '群号', placeholder: '904897306', inputMode: 'numeric' }],
+    },
+  },
   slack: {
     label: 'Slack',
     kinds: [{ value: 'conversation', label: '会话' }, { value: 'thread', label: '线程' }],
