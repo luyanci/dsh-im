@@ -25,6 +25,7 @@ import {
 } from '../../../../src/channels/shared/bot-workspace-store.mjs';
 import { prepareBotWorkspace } from '../../../../src/channels/shared/default-workspace.mjs';
 import { harnessConnection } from '../../harness-connection.mjs';
+import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
 import { initialAccessPolicyFor } from '../shared/access-policy-production.mjs';
 import { pluginPaths } from '../shared/production.mjs';
 
@@ -63,12 +64,24 @@ export async function createProductionController(ctx, config = {}, internals = {
     : configStore;
 
   const connection = harnessConnection(ctx, config, { competitiveApprovals: false });
+  const executors = createHarnessSessionExecutors(ctx, {
+    controlExecutor: internals.controlExecutor,
+    sessionMaintenanceExecutor: internals.sessionMaintenanceExecutor,
+    fileIngressExecutor: internals.fileIngressExecutor,
+  });
   const harness = new HarnessClient({
     ...connection,
     workspace: defaultWorkspace,
     ungroupedWorkspace,
     autostart: false,
     dshBin: config.dshBin ?? 'dsh',
+    // Inbound files (and any attachment the turn has to stage) go through the
+    // Harness session executors; without them the turn fails with
+    // INBOUND_FILE_INGRESS_UNAVAILABLE.
+    ...(executors.controlExecutor ? { controlExecutor: executors.controlExecutor } : {}),
+    ...(executors.sessionMaintenanceExecutor
+      ? { sessionMaintenanceExecutor: executors.sessionMaintenanceExecutor } : {}),
+    ...(executors.fileIngressExecutor ? { fileIngressExecutor: executors.fileIngressExecutor } : {}),
   });
 
   const stateStores = new Map();
