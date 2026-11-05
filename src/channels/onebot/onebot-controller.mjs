@@ -214,6 +214,9 @@ export class OneBotController {
         botId: config.botId,
         selfId: config.selfId,
         name: runtime?.status?.nickname ?? config.name,
+        // The workspace-aware wrapper renames `bot.name` from the saved alias, so
+        // the bot object has to exist here or an alias would never reach the card.
+        bot: { name: runtime?.status?.nickname ?? config.name },
         host: config.host,
         port: config.port,
         path: config.path,

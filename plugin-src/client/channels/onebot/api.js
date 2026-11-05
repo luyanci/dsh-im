@@ -42,7 +42,9 @@ export function toTokenBotShape(value) {
         state: connected ? 'connected' : bot?.connectionState === 'listening' ? 'connecting' : 'offline',
         bot: {
           ...(bot?.bot ?? {}),
-          name: bot?.nickname ?? bot?.name ?? localizeText('OneBot 账号'),
+          // The host already applied the saved alias to bot.name; a live nickname
+          // must not overwrite it.
+          name: bot?.bot?.name ?? bot?.nickname ?? bot?.name ?? localizeText('OneBot 账号'),
           username: '',
           idMasked: maskSelfId(bot?.selfId),
         },
