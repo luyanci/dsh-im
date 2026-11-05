@@ -971,6 +971,15 @@ const EN = Object.freeze({
   '请填写 QQ 号（5–12 位数字）。': 'Enter a QQ number (5–12 digits).',
   '端口需在 1–65535 之间。': 'The port must be between 1 and 65535.',
   'OneBot 操作失败': 'The OneBot operation failed.',
+  '监听地址 {address}': 'Listening on {address}',
+  '正在重启…': 'Restarting…',
+  '这会停止 {address} 的监听并删除本机保存的 OneBot 账号配置。':
+    'This stops listening on {address} and deletes the OneBot account saved on this machine.',
+  '接入 OneBot 账号': 'Connect a OneBot account',
+  '协议端（SnowLuma / NapCat / Lagrange）连接本机的反向 WebSocket；插件只负责收与发。':
+    'The protocol end (SnowLuma / NapCat / Lagrange) dials this host over a reverse WebSocket; the plugin only receives and sends.',
+  '填入 QQ 号与本机监听端口，然后把协议端的反向 WebSocket 指向下面的地址。':
+    'Enter the QQ number and a local listening port, then point the protocol end at the address below.',
   '先用 Manifest 创建并配置 Slack App': 'Create and configure a Slack app with the manifest',
   '复制配置后，在 Slack 选择 From a manifest；创建完成后生成 connections:write App Token，并将应用安装到工作区。': 'Copy the manifest and choose “From a manifest” in Slack. Then create a connections:write App Token and install the app to your workspace.',
   '复制 Manifest': 'Copy manifest',
