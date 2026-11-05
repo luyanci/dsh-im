@@ -1,66 +1,65 @@
-/** Client-side RPC surface for the OneBot channel (see host rpc.mjs). */
+/**
+ * Client-side RPC surface for the OneBot channel.
+ *
+ * The shared token-channel machinery drives the page, so this module only has to
+ * adapt OneBot's status payload into the shape it expects and keep the two
+ * OneBot-specific endpoints next to the shared ones.
+ */
+import { localizeText } from '../../i18n.js';
+import { TOKEN_BOT_ENDPOINTS, createTokenChannelApi } from '../shared/token-api.js';
+
 export const ONEBOT_RPC_CHANNEL = '/onebot';
 
 export const ONEBOT_ENDPOINTS = Object.freeze({
-  // Shared management names for the generic calls; the two OneBot-specific ones
-  // carry the listener settings no other channel has.
-  status: 'connection.status',
-  deleteBot: 'bot.delete',
-  restartBot: 'bot.reconnect',
+  ...TOKEN_BOT_ENDPOINTS,
+  // Adding an account replaces the token flow: the QQ number and the listener
+  // settings are what the protocol end needs, not a platform token.
+  bindCredentials: 'onebot.add-bot',
   addBot: 'onebot.add-bot',
   setSettings: 'onebot.set-settings',
-  setWorkspace: 'bot.workspace.set',
-  setModel: 'bot.model.set',
-  setAgentPreset: 'bot.agent-preset.set',
-  setAccessPolicy: 'bot.access-policy.set',
-  setAlias: 'bot.alias.set',
 });
 
-/** Unwrap the `{ ok, value }` envelope the management RPC returns. */
-export function unwrapRpcResult(result) {
-  if (result && result.ok === false) {
-    const error = new Error(result.error?.message ?? 'OneBot 操作失败');
-    error.code = result.error?.code;
-    error.details = result.error?.details ?? {};
-    throw error;
-  }
-  return result?.value ?? result;
+export function maskSelfId(selfId) {
+  const value = String(selfId ?? '');
+  return value.length > 6 ? `${value.slice(0, 4)}•••${value.slice(-3)}` : value;
 }
 
-/** Coerce a status payload into the shape the panel renders. */
-export function normalizeSnapshot(value) {
+const base = createTokenChannelApi('OneBot', ' OneBot 反向 WebSocket');
+
+/**
+ * OneBot reports `ready` (a live protocol-end connection) where the shared
+ * adapter expects `connected`/`state`, and has no platform username.
+ */
+export function toTokenBotShape(value) {
   const bots = Array.isArray(value?.bots) ? value.bots : [];
   return {
-    revision: Number.isSafeInteger(value?.revision) ? value.revision : 0,
-    ready: value?.ready === true,
-    bots: bots.map((bot) => ({
-      botId: String(bot.botId ?? ''),
-      selfId: String(bot.selfId ?? ''),
-      name: typeof bot.name === 'string' && bot.name ? bot.name : String(bot.selfId ?? ''),
-      host: String(bot.host ?? '127.0.0.1'),
-      port: Number(bot.port ?? 0),
-      path: String(bot.path ?? '/onebot/v11/ws'),
-      imageSendFormat: String(bot.imageSendFormat ?? 'auto'),
-      listening: bot.listening === true,
-      connected: bot.ready === true,
-      connectionState: String(bot.connectionState ?? 'idle'),
-      nickname: typeof bot.nickname === 'string' ? bot.nickname : null,
-      error: bot.error?.message ?? null,
-      // Decorated by the workspace-aware controller; the settings rows read these.
-      workspace: typeof bot.workspace === 'string' && bot.workspace ? bot.workspace : null,
-      alias: typeof bot.alias === 'string' ? bot.alias : null,
-      model: bot.model ?? null,
-      agentPreset: bot.agentPreset ?? null,
-      accessPolicy: bot.accessPolicy ?? null,
-    })),
+    ...value,
+    bots: bots.map((bot) => {
+      const connected = bot?.ready === true;
+      return {
+        ...bot,
+        connected,
+        state: connected ? 'connected' : bot?.connectionState === 'listening' ? 'connecting' : 'offline',
+        bot: {
+          ...(bot?.bot ?? {}),
+          name: bot?.nickname ?? bot?.name ?? localizeText('OneBot 账号'),
+          username: '',
+          idMasked: maskSelfId(bot?.selfId),
+        },
+      };
+    }),
   };
 }
 
-/** Turn any thrown value into something worth showing under a form. */
-export function presentError(error) {
-  if (!error) return null;
-  return {
-    code: error.code ?? 'onebot-error',
-    message: error.message ?? String(error),
-  };
+export const unwrapRpcResult = base.unwrapRpcResult;
+export const presentError = base.presentError;
+
+export function normalizeSnapshot(value) {
+  return base.normalizeSnapshot(toTokenBotShape(value));
 }
+
+export const onebotClientApi = Object.freeze({
+  unwrapRpcResult,
+  normalizeSnapshot,
+  presentError,
+});
