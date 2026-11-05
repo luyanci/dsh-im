@@ -105,13 +105,21 @@ i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-c
 | `text` | 正文 | 原样，不加包装（framing 归生产方） |
 | `at` | 唤醒判定 | `qq === self_id` 才算被叫到；`qq === 'all'` 单独处理 |
 | `reply` | 引用关系 | 段里只有 `id`，要 `get_msg` 补内容；补不到就标 `unavailableReason` |
-| `image` | 产物 | 入站按 `data.url` 下载（签名链接，会过期，随即缓存）；`data.file` 是裸资源名，不可当路径。出站待 M1 用 `send_group_msg` 实测 |
+| `image` | 产物 | 入站按 `data.url` 下载（签名链接，会过期，随即缓存），`data.file` 是裸资源名不可当路径；出站见下 |
 | `face` / `mface` | 表情占位 | 渲染成 `[表情]` / `[表情 名称]`，不当作正文 |
 | `forward` / `node` | 暂不支持 | 第一版落占位 `[合并转发]`，Deferred |
 
 自环：`post_type === 'message_sent'` 或 `sender.user_id === self_id` 一律丢弃，否则会自己跟自己说话。
 
 **这条必须自己兜住，不能指望协议端配置**：SnowLuma 有 `reportSelfMessage` 可以关掉上报，但其他 OneBot 实现不一定有这个开关，也不一定默认关闭（NapCat、Lagrange、go-cqhttp 等各家行为不一致），有的会推 `message_sent`，有的把自发消息混进 `message` 事件里。所以过滤放在我们这侧，按 `sender.user_id === self_id`（字符串比较）和 `post_type === 'message_sent'` 双条件丢弃；`reportSelfMessage` 只当作减少噪音的加分项。
+
+**出站图片的形态按协议端自适应**：`send_group_msg` 的 `image` 段在不同实现里接受的写法不同（`base64://`、`file://`、http url 各有一家不吃）。设置项 `imageSendFormat` 默认 `auto`，按 `base64 → url → file` 逐级试，一条成功就记住：
+
+- 缓存键用 `selfId + 协议端标识`（UA/版本），换协议端或换号自动重试；
+- 单个形态失败只记日志、换下一个形态，不打扰用户；
+- 全部失败才让整条消息失败，并把三种形态的错误一起上报。
+
+`file://` 只对**协议端与 DSH 同机**有意义；跨机部署时自动跳过。
 
 ### 5.1 协议端差异清单
 
@@ -188,17 +196,17 @@ OneBot 渠道**不参与进度呈现**，与 Telegram 的占位/编辑那套彻�
 | 自环怎么过滤 | §5 定案：自己按 `post_type === 'message_sent'` 与 `sender.user_id === String(self_id)` 双条件丢弃，不依赖协议端开关 |
 | 是否保留「正在处理」占位与进度 | §6.1 定案：静默模式——不发占位、忽略状态更新、不删消息、最终答案单独发 |
 | 消息编辑能力怎么处理 | §6 定案：QQ 没有编辑，`编辑最终答案` 开关对该渠道隐藏，不做「发占位再删」的兼容路径 |
+| 白名单默认策略 | 与既有渠道一致：默认 `open`（`defaultCanExecuteCommands: true`），复用 `plugin-src/host/channels/shared/access-policy-production.mjs` 的 `openScope()`；白名单只作可选收窄 |
+| 出站图片形态 | 取决于协议端实现，所以不写死：设置项 `imageSendFormat`（`auto` 默认 / `base64` / `url` / `file`），`auto` 按 `base64 → url → file` 依次尝试，成功后按 `selfId + 协议端标识` 缓存结果 |
 | 版本号 | `5.11.0`（渠道级新功能按 minor 递增） |
 
 ### 仍待决定
 
 1. **第一版是否带合并转发与 `mface`**——不带省约三分之一工作量；带了更接近 QQ 原生，但牵出嵌套渲染与上下文拼装。建议第一版不带，接口按「一条语义消息可含多段内容」预留。
-2. **白名单默认策略**：空 = 全部拒绝（推荐，防止 QQ 号一登录就被陌生群刷屏）还是全部允许。
-3. **出站图片形态**：`send_group_msg` 的 `image` 段吃 `base64://`、`file://` 还是 http url，哪个最稳——M1 用真实账号各试一次再定，别照文档猜。
-4. **是否解析 CQ 码字符串**：SnowLuma 配 `messageFormat: array`，但换到其他实现可能给 CQ 码字符串。可以第一版只吃数组、遇到字符串明确报错，也可以顺手写个 CQ 码解码器（约 100 行）。
-5. **是否支持 `Api` / `Event` 拆分角色**：第一版只接 `Universal`，拆分的两条留后置。
-6. **回合失败要不要发一条错误**（§6.1 末尾）：失败属于结果不属于状态，建议发；也可以彻底静默。
-7. **端口与令牌默认值**：默认 `6700` + 手动填写 token，还是随机生成一个写进设置。
+2. **是否解析 CQ 码字符串**：SnowLuma 配 `messageFormat: array`，但换到其他实现可能给 CQ 码字符串。可以第一版只吃数组、遇到字符串明确报错，也可以顺手写个 CQ 码解码器（约 100 行）。
+3. **是否支持 `Api` / `Event` 拆分角色**：第一版只接 `Universal`，拆分的两条留后置。
+4. **回合失败要不要发一条错误**（§6.1 末尾）：失败属于结果不属于状态，建议发；也可以彻底静默。
+5. **端口与令牌默认值**：默认 `6700` + 手动填写 token，还是随机生成一个写进设置。
 
 ## 10 里程碑
 
