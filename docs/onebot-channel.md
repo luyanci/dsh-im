@@ -80,26 +80,31 @@ onebot-api.mjs               原生呈现：send_group_msg / send_private_msg
 
 ## 4 文件清单
 
-Host 侧：
+Host 侧（已实现）：
 
 | 文件 | 职责 |
 |---|---|
-| `src/channels/onebot/onebot-connection.mjs` | 反向 WS 服务端：只监听 `127.0.0.1`、校验 token、记录连接元数据（`X-Self-ID`、`X-Client-Role`）、重连与状态 |
-| `src/channels/onebot/onebot-runtime.mjs` | 事件 → 语义消息；自环过滤；段解析（`@`/`reply`/`image`/`face`） |
+| `src/channels/onebot/onebot-connection.mjs` | 反向 WS 服务端：只监听 `127.0.0.1`、校验 token 与两个必带头、按账号去重、动作 `echo` 配对、心跳超时断开 |
+| `src/channels/onebot/onebot-normalize.mjs` | 事件 → 语义消息；自环过滤；段解析（`@`/`reply`/`image`/`face`/`mface`/`forward`）；图片按签名 url 懒加载 |
 | `src/channels/onebot/onebot-api.mjs` | 只含收发所需：`send_group_msg`、`send_private_msg`、`get_msg`、`get_login_info`。管理动作不在这里（§7.1） |
-| `src/channels/onebot/onebot-bridge.mjs` | 接 `text-harness-bridge.mjs`，实现渠道侧的「发送一条消息」与「能力探测」 |
-| `src/channels/onebot/config-store.mjs` / `state-store.mjs` | 与 `qq`、`telegram` 同构 |
-| `plugin-src/host/channels/onebot/{index.mjs,production.mjs,rpc.mjs}` | `apply()` 接线，照 `plugin-src/host/channels/qq/` |
+| `src/channels/onebot/onebot-bot.mjs` | bridge 驱动的 bot 客户端：长文分段、附件降级、图片自适应形态；**不实现** typing / 卡片 / 流式，借此退出进度呈现 |
+| `src/channels/onebot/onebot-bridge.mjs` | `TextHarnessBridge` 子类 + descriptor（无 reaction、无编辑） |
+| `src/channels/onebot/onebot-runtime.mjs` | 一个账号一个监听器：起 server、接桥、收发、状态与账号信息 |
+| `src/channels/onebot/onebot-controller.mjs` | 账号增删、监听重启、状态聚合；令牌走凭据服务 |
+| `src/channels/onebot/onebot-config-store.mjs` | 每账号配置文档（selfId / 端口 / 路径 / 图片形态 / 白名单），令牌只存引用 |
+| `src/channels/onebot/onebot-{harness-client,state-store}.mjs` | 与其它渠道同构的薄别名 |
+| `plugin-src/host/channels/onebot/{index.mjs,production.mjs,rpc.mjs}` | `apply()` 接线、生产组装、管理 RPC |
 
-Client 侧：
+Client 侧（已实现）：
 
 | 文件 | 职责 |
 |---|---|
-| `plugin-src/client/channels/onebot/{api.js,index.js,styles.js}` | 设置卡：监听端口、access token、selfId、白名单、「测试连接」 |
-| `plugin-src/client/channel-logos.js` | 新增 `OneBotLogoGlyph`，内联 SVG（断两处圆环 + 「1\|」），来源 `onebot.dev/logo.png` |
-| `plugin-src/host/index.mjs` | 加 `applyOneBot` 与配置 schema 的 `onebot` 段 |
+| `plugin-src/client/channels/onebot/{api.js,index.js,styles.js}` | 设置卡：账号列表与连接状态、添加账号（QQ 号 / 端口 / 令牌 / 图片形态）、重启与删除 |
+| `plugin-src/client/channel-logos.js` | `OneBotLogoGlyph`，内联 SVG（断两处圆环 + 「1\|」），来源 `onebot.dev/logo.png` |
+| `plugin-src/client/{i18n.js,i18n-ru.js}` | 卡片文案的英文 / 俄文投影 |
+| `plugin-src/host/index.mjs` | `applyOneBot` 注册 |
 
-i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-coverage.test.mjs` 会让 CI 挂。
+i18n：host 侧新增的 `t('中文')` 走 `src/channels/shared/i18n-{en,ru}/onebot.mjs`，客户端文案走 `plugin-src/client/i18n*.js`；两处都有覆盖率测试守着。
 
 ## 5 段映射
 
@@ -236,14 +241,16 @@ QQ 侧同样可行，因为 SnowLuma 的 `networks` 允许同一账号同时启�
 
 ## 10 里程碑
 
-| 阶段 | 内容 | 出口 |
+| 阶段 | 内容 | 状态 |
 |---|---|---|
-| M0 | 探针脚本 + 协议确认 | 原始事件落盘，四点结论写回本文档 |
-| M1 | 连接层 + 发送 | 能从测试脚本发一条群消息 |
-| M2 | 运行时 + 语义消息 | 群聊文本往返跑通，接上 bridge |
-| M3 | 接线 + 设置卡 + logo + i18n | 设置页可配置、可测连接 |
-| M4 | 引用 / @ / 图片 / 表情 | 四类段全覆盖 |
-| ~~M5~~ | 原计划的管理动作（禁言 / 撤回 / 群成员）已整体移出通道，归工作区 caller；里程碑不再保留 M5 |
-| M6 | 测试 + 打包 | `npm run check` 绿、CI 绿 |
+| M0 | 探针脚本 + 协议确认 | ✅ 结论在 §2.1 |
+| M1 | 连接层 + 收发 | ✅ `onebot-connection.mjs` / `onebot-api.mjs` / `onebot-bot.mjs` |
+| M2 | 运行时 + 语义消息 | ✅ `onebot-normalize.mjs` / `onebot-runtime.mjs` / `onebot-controller.mjs` |
+| M3 | 接线 + 设置卡 + logo + i18n | ✅ host 接线、客户端设置卡、内联 SVG logo、en/ru 词条 |
+| M4 | 引用 / @ / 图片 / 表情 | 解析已覆盖（normalize 测试）；**真实账号往返未验证** |
+| ~~M5~~ | 管理动作已移出通道，归工作区 caller | — |
+| M6 | 测试 + 打包 | 单测 53 项 + 全量 5023 项（仅剩两条本地环境失败）；CI 触发待 push tag |
 
-估时：M1–M3 约一到两天等效工作量，M4–M6 再一天。合并转发不进这个里程碑。
+尚未在真实协议端验证的部分（都需要启动一个 bot，本轮刻意没做）：真实收发往返、协议端对 `base64://` 图片的接受度、长文分段在客户端的观感、多账号并发监听。
+
+剩下的开放问题见 §9，均不阻塞下一次开工。
