@@ -25,14 +25,23 @@
 
 ## 2 协议端
 
-使用 SnowLuma。开工前必须先确认（见 §9 开放问题）：
+使用 [SnowLuma](https://github.com/SnowLuma/SnowLuma)：把 QQ 原生会话转成 OneBot v11 动作与事件，Windows x64 / Linux x64 / arm64，带 WebUI（默认 `http://localhost:5099`）。它同时提供 WS 服务端与**反向 WS 客户端**两种角色，我们做前者。
 
-1. 是否实现 OneBot v11 反向 WebSocket，鉴权头是 `Authorization: Bearer <token>` 还是 `?access_token=`；
-2. 是否推送 `message_sent`（自己发出的消息回显）；不推的话自环过滤靠 `sender.user_id === self_id`；
-3. 图片段给什么：`file://`、`base64://`、还是 http url；
-4. 心跳事件格式与周期，以及断线后是否自动重连。
+从其官方反向 WS 文档能直接确定的部分（不必再猜）：
 
-**第 0 步验收**：一个独立探针脚本连上去，把原始事件落盘，确认以上四点。在此之前不写接入代码。
+- **鉴权**：`Authorization: Bearer <token>` 或 `?access_token=` 两种都收；token 为空表示不校验；
+- **头**：`X-Self-ID`（账号）与 `X-Client-Role` 是**必带**的，缺了直接拒；
+- **角色**：`Universal`（动作+事件同一连接）或 `Api` / `Event` 拆两条；我们第一版只支持 `Universal`，拆分的两条留后置；
+- **自环回显**：由协议端配置 `reportSelfMessage` 决定，示例配置里是 `false`，即默认不回显。仍按 `sender.user_id === self_id` 兜底过滤；
+- **心跳**：WS ping/pong，默认 30 秒，两次未响应即断开；协议端自己负责重连，我们只需接受新连接；
+- **限制**：单帧入站 100 MiB、出站缓冲 16 MiB、并发 128 条连接、动作超时 30 秒；重复的活动通道会被 409 拒掉，跨账号帧直接断连。
+
+仍需探针确认的只剩两点：
+
+1. **图片段给什么形态**（`base64://` / `file://` / http url），以及带不带 `url` 字段；
+2. **心跳是否同时发 `meta_event.lifecycle`**，以及 `message_sent` 在 `reportSelfMessage: true` 时的实际字段。
+
+**第 0 步验收**：`scripts/onebot-probe.mjs` 起一个只监听 `127.0.0.1` 的反向 WS，把握手头、每条事件、图片段形态、ping/pong 全部落到 `.onebot-probe.jsonl`；配合一次 `send_group_msg` 还能验证自环回显。用例已用假客户端自测通过。在此之前不写接入代码。
 
 ## 3 分层
 
