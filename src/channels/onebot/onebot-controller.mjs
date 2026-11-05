@@ -220,7 +220,9 @@ export class OneBotController {
   async #startRuntime(config) {
     const accessToken = await this.#resolveAccessToken(config);
     const state = await this.#stateFor(config.botId);
-    const runtime = this.#createRuntime({
+    // The factory may be async: production awaits the workspace record before it
+    // can hand the runtime its own harness scope.
+    const runtime = await this.#createRuntime({
       config: { ...config, accessToken },
       harness: this.#harness,
       state,

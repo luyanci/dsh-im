@@ -101,6 +101,37 @@ test('changing settings restarts the listener with the new port', async (t) => {
   ]);
 });
 
+test('an async runtime factory is awaited before start is called', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-onebot-async-'));
+  const configStore = await new OneBotConfigStore(join(root, 'onebot.json')).load();
+  const log = [];
+  const controller = new OneBotController({
+    credentials: fakeCredentials(),
+    configStore,
+    // Production's factory awaits the workspace record first, so it returns a
+    // promise; the controller must not treat that promise as the runtime.
+    createRuntime: async () => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      const status = createOneBotRuntimeStatus();
+      return {
+        status,
+        async start() {
+          log.push('start');
+          status.listening = true;
+        },
+        async stop() {},
+      };
+    },
+    harness: { ensureRunning: async () => {} },
+    state: {},
+    logger: { warn() {} },
+  });
+  t.after(() => controller.close());
+  const status = await controller.addBot({ selfId: SELF_ID, port: 6820 });
+  assert.equal(status.bots[0].listening, true);
+  assert.deepEqual(log, ['start']);
+});
+
 test('deleting a bot stops it, forgets it and drops its token', async () => {
   const { controller, configStore, credentials } = await setup();
   const created = await controller.addBot({ selfId: SELF_ID, accessToken: 'secret' });
