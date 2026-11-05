@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeOneBotEvent, OneBotFormatError } from '../../../src/channels/onebot/onebot-normalize.mjs';
+import {
+  normalizeOneBotEvent,
+  oneBotQuotedReference,
+  OneBotFormatError,
+} from '../../../src/channels/onebot/onebot-normalize.mjs';
 
 const SELF_ID = 2951316926;
 const GROUP_ID = 904897306;
@@ -76,6 +80,49 @@ test('a reply segment carries the quoted id and nothing else', () => {
   assert.deepEqual(message.replyTo, { messageId: '392264416' });
   assert.equal(message.content, ' 123');
   assert.equal(message.addressed, true);
+});
+
+test('a reply carries a loader when the runtime can resolve quoted ids', async () => {
+  const asked = [];
+  const message = normalizeOneBotEvent(groupEvent([
+    { type: 'reply', data: { id: '392264416' } },
+    { type: 'text', data: { text: ' 看这个' } },
+  ]), {
+    selfId: SELF_ID,
+    groupTriggers: triggers,
+    loadReply: async (messageId) => {
+      asked.push(messageId);
+      return { authorName: '泥', content: '原话' };
+    },
+  });
+  assert.equal(message.replyTo.messageId, '392264416');
+  assert.equal(typeof message.replyTo.load, 'function');
+  assert.deepEqual(await message.replyTo.load({}), { authorName: '泥', content: '原话' });
+  assert.deepEqual(asked, ['392264416']);
+});
+
+test('a get_msg payload becomes the quoted reference the pipeline renders', () => {
+  const reference = oneBotQuotedReference({
+    message_type: 'group',
+    message_id: 392264416,
+    sender: { user_id: SELF_ID, nickname: 'VC酱2号机', card: '' },
+    message: [
+      { type: 'at', data: { qq: '2058282593', name: '泥' } },
+      { type: 'text', data: { text: ' 帮我看看' } },
+      { type: 'image', data: { file: 'abc.jpg' } },
+    ],
+  });
+  assert.equal(reference.authorId, String(SELF_ID));
+  assert.equal(reference.authorName, 'VC酱2号机');
+  assert.equal(reference.content, '@泥 帮我看看');
+  assert.deepEqual(reference.attachments, [{ kind: 'image', name: 'abc.jpg' }]);
+});
+
+test('a deleted quote is null, an unreadable one is unsupported', () => {
+  assert.equal(oneBotQuotedReference(null), null);
+  const odd = oneBotQuotedReference({ sender: { user_id: '1' }, message: [] });
+  assert.equal(odd.unavailableReason, 'unsupported');
+  assert.equal(odd.authorId, '1');
 });
 
 test('a private message is always addressed and keys on the user', () => {

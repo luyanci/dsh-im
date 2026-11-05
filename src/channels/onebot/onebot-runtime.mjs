@@ -10,7 +10,7 @@ import { createOneBotApi } from './onebot-api.mjs';
 import { createOneBotBotClient } from './onebot-bot.mjs';
 import { createOneBotBridgeStatus, OneBotHarnessBridge } from './onebot-bridge.mjs';
 import { createOneBotServer } from './onebot-connection.mjs';
-import { normalizeOneBotEvent } from './onebot-normalize.mjs';
+import { normalizeOneBotEvent, oneBotQuotedReference } from './onebot-normalize.mjs';
 
 /** Convenience factory; the class stays exported for callers that subclass. */
 export function createOneBotRuntime(options) {
@@ -210,6 +210,18 @@ export class OneBotRuntime {
     }
   }
 
+  /**
+   * Resolve a quoted message id through `get_msg`. QQ's `reply` segment carries
+   * only the id, so without this the reply block reaches the model as
+   * `not-delivered` even though the message exists.
+   */
+  async #loadReply(messageId) {
+    const session = this.#session;
+    if (session === null || session === undefined) return null;
+    const api = this.#createApi(session);
+    return oneBotQuotedReference(await api.getMsg(messageId));
+  }
+
   #onFrame(frame) {
     if (this.#stopped || this.#bridge === null) return;
     let message;
@@ -218,6 +230,7 @@ export class OneBotRuntime {
         selfId: this.#session?.selfId ?? this.#config.selfId,
         groupTriggers: this.#config.groupTriggers,
         loadImage: this.#loadImage,
+        loadReply: (messageId, options) => this.#loadReply(messageId, options),
       });
     } catch (error) {
       // A CQ-string message is the one shape the first version refuses; say so

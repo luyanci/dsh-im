@@ -96,13 +96,73 @@ function renderSegment(segment, { selfId }) {
 }
 
 /**
+ * Turn a `get_msg` result into the quoted reference shape the reply pipeline
+ * expects. Returning `null` means the message is gone; an object with no text
+ * and no attachments still carries the author, so the model at least knows who
+ * was quoted.
+ */
+export function oneBotQuotedReference(quoted) {
+  if (quoted === null || quoted === undefined) return null;
+  const sender = quoted.sender ?? {};
+  const segments = Array.isArray(quoted.message) ? quoted.message : [];
+  let content = '';
+  const attachments = [];
+  for (const segment of segments) {
+    const data = segment?.data ?? {};
+    switch (segment?.type) {
+      case 'text':
+        content += String(data.text ?? '');
+        break;
+      case 'at': {
+        const name = typeof data.name === 'string' && data.name ? data.name : String(data.qq ?? '');
+        content += `@${name}`;
+        break;
+      }
+      case 'face':
+        content += '[表情]';
+        break;
+      case 'image':
+        attachments.push({ kind: 'image', ...(typeof data.file === 'string' ? { name: data.file } : {}) });
+        break;
+      case 'mface': {
+        const summary = typeof data.summary === 'string' ? data.summary : '';
+        content += summary ? `[表情 ${summary}]` : '[表情]';
+        break;
+      }
+      case 'forward':
+        attachments.push({ kind: 'other', name: 'forward' });
+        break;
+      default:
+        break;
+    }
+  }
+  const authorName = typeof sender.card === 'string' && sender.card
+    ? sender.card
+    : typeof sender.nickname === 'string' && sender.nickname ? sender.nickname : undefined;
+  const authorId = sender.user_id === undefined || sender.user_id === null
+    ? undefined : String(sender.user_id);
+  return {
+    ...(authorId === undefined ? {} : { authorId }),
+    ...(authorName === undefined ? {} : { authorName }),
+    ...(content.trim() ? { content: content.trim() } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
+    ...(!content.trim() && attachments.length === 0 ? { unavailableReason: 'unsupported' } : {}),
+  };
+}
+
+/**
  * Normalize one event. Returns `null` for anything that is not a fresh inbound
  * message (meta events, notices, self echoes, malformed frames).
+ *
+ * `loadReply` resolves a quoted message id through `get_msg`; without it the
+ * reference still carries the id, but the reply block would reach the model as
+ * `not-delivered` because QQ sends no content with the `reply` segment.
  */
 export function normalizeOneBotEvent(event, {
   selfId,
   groupTriggers,
   loadImage,
+  loadReply,
 } = {}) {
   if (event?.post_type !== 'message') return null;
   if (isSelfEcho(event, selfId)) return null;
@@ -171,7 +231,13 @@ export function normalizeOneBotEvent(event, {
     plainText: true,
     images,
     files: [],
-    ...(replyToId === undefined ? {} : { replyTo: { messageId: replyToId } }),
+    // QQ sends only the quoted id, so the reply pipeline resolves the content
+    // later through `load`; without a loader the block degrades to the id alone.
+    ...(replyToId === undefined ? {} : {
+      replyTo: typeof loadReply === 'function'
+        ? { messageId: replyToId, load: options => loadReply(replyToId, options) }
+        : { messageId: replyToId },
+    }),
     addressed,
     replyTarget: direct
       ? { userId: String(chatId) }

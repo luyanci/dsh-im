@@ -168,6 +168,52 @@ test('a malformed frame is logged and never throws', async (t) => {
   assert.ok(warnings.some((line) => line.includes('dropped a message')));
 });
 
+test('a quoted reply resolves its content through get_msg', async (t) => {
+  const { runtime, bridge } = await startRuntime();
+  t.after(() => runtime.stop());
+  const ws = connect(runtime);
+  ws.on('message', (raw) => {
+    const frame = JSON.parse(raw.toString('utf8'));
+    if (frame.action === 'get_login_info') {
+      ws.send(JSON.stringify({
+        status: 'ok', retcode: 0, data: { user_id: Number(SELF_ID), nickname: 'VC酱2号机' }, echo: frame.echo,
+      }));
+      return;
+    }
+    if (frame.action === 'get_msg') {
+      ws.send(JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        data: {
+          message_id: Number(frame.params.message_id),
+          sender: { user_id: 2058282593, nickname: 'LYX233', card: 'YC酱' },
+          message: [{ type: 'text', data: { text: '被引用的话' } }],
+        },
+        echo: frame.echo,
+      }));
+    }
+  });
+  await once(ws, 'open');
+  t.after(() => ws.close());
+
+  ws.send(groupMessage([
+    { type: 'reply', data: { id: '392264416' } },
+    { type: 'at', data: { qq: SELF_ID } },
+    { type: 'text', data: { text: ' 这是什么' } },
+  ]));
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  assert.equal(bridge.accepted.length, 1);
+  const [message] = bridge.accepted;
+  assert.equal(message.replyTo.messageId, '392264416');
+  // The reply pipeline calls this lazily; QQ sent only the id.
+  assert.deepEqual(await message.replyTo.load({}), {
+    authorId: '2058282593',
+    authorName: 'YC酱',
+    content: '被引用的话',
+  });
+});
+
 test('stopping closes the listener and clears the status', async () => {
   const { runtime } = await startRuntime();
   const stopped = await runtime.stop();
