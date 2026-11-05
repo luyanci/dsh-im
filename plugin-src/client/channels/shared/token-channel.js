@@ -81,6 +81,10 @@ export function createTokenChannelSettings(definition) {
     emptyActionLabel = '填写 Bot Token',
     AccountSettings = null,
     accountSettingsEndpoint = null,
+    // A channel whose setup panel already shows its own failure (OneBot, where the
+    // port clash belongs next to the port field) can turn the page-level banner
+    // off; the panel then receives the server error instead.
+    surfacePageError = true,
   } = definition;
 
   function AccountCard({ account, busy, testNotice, removing, onReconnect, onWorkspaceSave, onAliasSave, onModelSave, onAgentPresetSave, onContextEnhancementSave, onAccountSettingsSave, onRequestRemove, onConfirmRemove, onCancelRemove, rpcCall, reload }) {
@@ -421,7 +425,7 @@ export function createTokenChannelSettings(definition) {
       className: `ddt-page ${pageClass} dim-channelPage`,
       'aria-label': localizeTemplate('{channel} 设置', { channel: channelName(channel) }),
     },
-    operationError ? h(ConnectionError, { error: operationError }) : null,
+    surfacePageError && operationError ? h(ConnectionError, { error: operationError }) : null,
     h('div', { className: 'ddt-heading' },
       h('div', { className: 'ddt-tools' },
         h('div', { className: 'dim-bindActions' },
@@ -458,7 +462,9 @@ export function createTokenChannelSettings(definition) {
                   channel,
                   permissions: model.permissions,
                   busy,
-                  error: credentialError,
+                  // When the page banner is off, the panel is the only place the
+                  // server-side failure can appear.
+                  error: credentialError ?? (surfacePageError ? null : operationError),
                   onSubmit: bindCredentials,
                   onCancel: () => { setCredentialOpen(false); setCredentialError(null); },
                   // A transport that authorizes out of band (the Agent mailbox

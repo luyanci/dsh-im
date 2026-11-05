@@ -9,13 +9,15 @@ const IMAGE_FORMATS = ['auto', 'base64', 'url', 'file'];
  * The OneBot counterpart of the token panels: instead of pasting a platform
  * token, the owner supplies the QQ number and the local listener.
  */
-export function OneBotCredentialPanel({ busy, onSubmit, onCancel }) {
+export function OneBotCredentialPanel({ busy, error, onSubmit, onCancel }) {
   const [selfId, setSelfId] = React.useState('');
   const [port, setPort] = React.useState('6700');
   const [accessToken, setAccessToken] = React.useState('');
   const [imageFormat, setImageFormat] = React.useState('auto');
   const [invalid, setInvalid] = React.useState(null);
   const headingId = React.useId();
+  // Local validation wins while it is fresh; a server answer replaces it.
+  const localError = invalid ?? error ?? null;
 
   const submit = (event) => {
     event.preventDefault();
@@ -101,9 +103,9 @@ export function OneBotCredentialPanel({ busy, onSubmit, onCancel }) {
       }, IMAGE_FORMATS.map(format => h('option', { key: format, value: format },
         format === 'auto' ? localizeText('自动（推荐）') : format))),
       h('span', { className: 'dob-hint' }, 'auto 会依次尝试 base64 与 url，成功后记住。')),
-    // The page already shows the server-side failure at the top; repeating it here
-    // printed the same message twice. Keep only the local validation message.
-    invalid ? h(ConnectionError, { error: invalid }) : null,
+    // Shown next to the fields that caused it; the page-level banner is off for
+    // this channel so the same failure never appears twice.
+    localError ? h(ConnectionError, { error: localError }) : null,
     h('div', { className: 'ddt-actions dim-viewActions dob-formActions' },
       h('button', {
         type: 'submit',

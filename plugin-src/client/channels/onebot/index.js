@@ -28,6 +28,9 @@ const channel = createTokenChannelSettings({
   credentialCloseLabel: '收起接入',
   credentialNoun: 'OneBot 账号',
   emptyActionLabel: '开始接入',
+  // The setup form shows its own failure next to the fields, so the page-level
+  // banner would only repeat it above the heading.
+  surfacePageError: false,
 });
 
 export const OneBotSettingsTab = channel.SettingsTab;
