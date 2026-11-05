@@ -163,6 +163,36 @@ test('a listener that cannot bind surfaces as a bot error, not a crash', async (
   assert.equal(status.bots[0].listening, false);
 });
 
+test('the connect check sends a test message to the last conversation', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-onebot-test-'));
+  const configStore = await new OneBotConfigStore(join(root, 'c.json')).load();
+  const sent = [];
+  const status = createOneBotRuntimeStatus();
+  const controller = new OneBotController({
+    credentials: fakeCredentials(),
+    configStore,
+    createRuntime: () => ({
+      status: { ...status, listening: true, lastTarget: { groupId: '904897306' } },
+      async start() {},
+      async stop() {},
+      async sendText(target, text) { sent.push([target, text]); },
+    }),
+    harness: { ensureRunning: async () => {} },
+    state: {},
+    logger: { warn() {} },
+  });
+  t.after(() => controller.close());
+  const added = await controller.addBot({ selfId: SELF_ID, port: 6840 });
+  const botId = added.bots[0].botId;
+  const checked = await controller.restartBot(botId, { sendTest: true });
+  assert.deepEqual(checked.testMessage, { sent: true });
+  assert.equal(sent[0][0].groupId, '904897306');
+  assert.match(sent[0][1], /连接检查/);
+  // Without a conversation there is nothing to prove.
+  const idle = await controller.restartBot(botId);
+  assert.equal(idle.testMessage, undefined);
+});
+
 test('two accounts cannot share one listener port', async (t) => {
   const { controller } = await setup();
   t.after(() => controller.close());

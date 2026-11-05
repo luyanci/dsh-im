@@ -121,8 +121,10 @@ function validate(endpoint, payload) {
       return exactKeys(payload, ['botId', 'confirm']) && validId(payload.botId) && payload.confirm === true
         ? null : 'bot.delete requires a botId and confirm=true.';
     case ONEBOT_ENDPOINTS.restartBot:
-      return exactKeys(payload, ['botId']) && validId(payload.botId)
-        ? null : 'bot.reconnect requires a botId.';
+      // The settings page's connect check asks for a test message in the same call.
+      return exactKeys(payload, ['botId', 'sendTest']) && validId(payload.botId)
+        && (payload.sendTest === undefined || typeof payload.sendTest === 'boolean')
+        ? null : 'bot.reconnect requires a botId and an optional sendTest flag.';
     case ONEBOT_ENDPOINTS.setSettings:
       if (!exactKeys(payload, SETTINGS_KEYS) || !validId(payload.botId)) {
         return 'onebot.set-settings requires a botId and known fields only.';
@@ -159,7 +161,12 @@ export function createOneBotRpcHandler(controller) {
         case ONEBOT_ENDPOINTS.deleteBot:
           return { ok: true, value: await controller.deleteBot(payload.botId, { confirm: payload.confirm }) };
         case ONEBOT_ENDPOINTS.restartBot:
-          return { ok: true, value: await controller.restartBot(payload.botId) };
+          return {
+            ok: true,
+            value: await controller.restartBot(payload.botId, {
+              ...(payload.sendTest === undefined ? {} : { sendTest: payload.sendTest }),
+            }),
+          };
         case ONEBOT_ENDPOINTS.setSettings: {
           const { botId, ...patch } = payload;
           return { ok: true, value: await controller.setSettings(botId, patch) };

@@ -180,11 +180,30 @@ export class OneBotController {
     return this.status();
   }
 
-  /** Stop and start one bot's listener. */
-  async restartBot(botId) {
+  /** Stop and start one bot's listener; optionally send a test message after. */
+  async restartBot(botId, { sendTest = false } = {}) {
     if (this.#closed) throw new Error('OneBot controller is closed');
     await this.#restart(botId);
-    return this.status();
+    const status = this.status();
+    if (!sendTest) return status;
+    return { ...status, testMessage: await this.#sendTestMessage(botId) };
+  }
+
+  /**
+   * The connect check: one short message to wherever the last inbound message
+   * came from. With no conversation yet there is nothing to prove, so say that
+   * instead of pretending the check passed.
+   */
+  async #sendTestMessage(botId) {
+    const runtime = this.#runtimes.get(botId);
+    const target = runtime?.status?.lastTarget;
+    if (!runtime || !target) return { sent: false, code: 'test-target-unavailable' };
+    try {
+      await runtime.sendText(target, '连接检查：收到这条说明收发正常。');
+      return { sent: true };
+    } catch (error) {
+      return { sent: false, code: 'test-send-failed', message: error?.message ?? String(error) };
+    }
   }
 
   status() {

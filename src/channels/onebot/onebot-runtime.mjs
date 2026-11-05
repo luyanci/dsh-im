@@ -59,6 +59,8 @@ export class OneBotRuntime {
 
   #bot = null;
 
+  #lastTarget = null;
+
   #loadImage;
 
   #status;
@@ -110,7 +112,12 @@ export class OneBotRuntime {
   }
 
   get status() {
-    return structuredClone(this.#status);
+    return structuredClone({
+      ...this.#status,
+      // Where the last inbound message came from; the connect check sends its
+      // test message there.
+      ...(this.#lastTarget === null ? {} : { lastTarget: this.#lastTarget }),
+    });
   }
 
   get ready() {
@@ -278,6 +285,8 @@ export class OneBotRuntime {
       return;
     }
     if (!message) return;
+    // Remember the origin so the connect check has somewhere to send its test.
+    if (message.replyTarget) this.#lastTarget = { ...message.replyTarget };
     void this.#addressedForQuote(message)
       .then((ready) => this.#bridge?.accept(ready))
       .catch((error) => {
