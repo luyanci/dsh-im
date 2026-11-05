@@ -15,11 +15,14 @@ import { installOneBotStyles } from './styles.js';
 const POLL_INTERVAL_MS = 5_000;
 const IMAGE_FORMATS = ['auto', 'base64', 'url', 'file'];
 
-/** Same button shell the shared channel cards use. */
-function Button({ children, kind = 'secondary', className = '', ...props }) {
+/**
+ * Same button shell the shared channel cards use. `type` is honoured rather than
+ * forced to "button": the form's submit button must actually submit.
+ */
+function Button({ children, kind = 'secondary', className = '', type = 'button', ...props }) {
   return h('button', {
     ...props,
-    type: 'button',
+    type,
     className: `ddt-button ${className}`.trim(),
     'data-kind': kind,
   }, children);
@@ -228,7 +231,7 @@ export function OneBotSettingsTab({ rpcCall }) {
                   h('input', {
                     value: selfId,
                     onChange: event => setSelfId(event.target.value),
-                    placeholder: '2951316926',
+                    placeholder: 'QQ 号',
                     inputMode: 'numeric',
                     autoComplete: 'off',
                     disabled: Boolean(busy),
@@ -269,7 +272,9 @@ export function OneBotSettingsTab({ rpcCall }) {
                   h(Button, {
                     kind: 'primary',
                     type: 'submit',
-                    disabled: Boolean(busy) || !selfId.trim(),
+                    // Not disabled on an empty field: a click must explain what is
+                    // missing instead of looking dead.
+                    disabled: Boolean(busy),
                   }, busy === 'bind' ? '正在保存…' : '保存并开始监听')))))
           : null,
         bots.length === 0 && !open
