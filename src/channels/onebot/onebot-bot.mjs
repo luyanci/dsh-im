@@ -150,6 +150,31 @@ export function createOneBotBotClient({
 
     sendImage,
 
+    /**
+     * Deliver a non-image artifact. QQ has no message type that carries a file,
+     * so this uses the protocol end's upload actions; the file then shows up as
+     * a group/briefcase file instead of a message.
+     */
+    async sendFile(target, file) {
+      const api = currentApi();
+      if (!api) throw new Error('OneBot 协议端尚未连接');
+      const bytes = Buffer.isBuffer(file?.bytes) ? file.bytes
+        : typeof file?.data !== 'undefined' ? file.data
+          : file?.path ? await readFileImpl(file.path) : undefined;
+      if (bytes === undefined) throw new Error('OneBot file delivery needs bytes, data or a path');
+      const name = file?.fileName ?? file?.name ?? 'file';
+      const handle = base64ImageFile(bytes);
+      if (target?.groupId !== undefined) {
+        if (typeof api.uploadGroupFile !== 'function') throw new Error('OneBot 协议端不支持 upload_group_file');
+        return api.uploadGroupFile(target.groupId, handle, name);
+      }
+      if (target?.userId !== undefined) {
+        if (typeof api.uploadPrivateFile !== 'function') throw new Error('OneBot 协议端不支持 upload_private_file');
+        return api.uploadPrivateFile(target.userId, handle, name);
+      }
+      throw new Error('OneBot 投递目标缺少 groupId 或 userId');
+    },
+
     /** Exposed for the runtime's own attachment handling and for tests. */
     send,
   };

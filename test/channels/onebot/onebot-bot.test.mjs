@@ -20,6 +20,14 @@ function fakeApi() {
       calls.push({ action: 'send_private_msg', userId, message });
       return { message_id: calls.length };
     },
+    async uploadGroupFile(groupId, file, name) {
+      calls.push({ action: 'upload_group_file', groupId, file, name });
+      return { file_id: `f${calls.length}` };
+    },
+    async uploadPrivateFile(userId, file, name) {
+      calls.push({ action: 'upload_private_file', userId, file, name });
+      return { file_id: `f${calls.length}` };
+    },
   };
 }
 
@@ -114,4 +122,19 @@ test('an image with neither data nor a url fails loudly', async () => {
 test('there is no typing indicator to send', () => {
   const bot = createOneBotBotClient({ api: fakeApi() });
   assert.equal(bot.sendTyping, undefined);
+});
+
+test('a document goes out through the protocol end upload action', async () => {
+  const api = fakeApi();
+  const bot = createOneBotBotClient({ api });
+  await bot.sendFile({ groupId: '904897306' }, {
+    bytes: Buffer.from('report'),
+    fileName: '报告.txt',
+    mediaType: 'text/plain',
+  });
+  await bot.sendFile({ userId: '2058282593' }, { bytes: Buffer.from('x'), name: 'a.txt' });
+  assert.deepEqual(api.calls.map(call => call.action), ['upload_group_file', 'upload_private_file']);
+  assert.equal(api.calls[0].name, '报告.txt');
+  assert.equal(api.calls[0].file, base64ImageFile(Buffer.from('report')));
+  assert.equal(api.calls[1].name, 'a.txt');
 });

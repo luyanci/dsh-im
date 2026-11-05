@@ -76,6 +76,23 @@ export function createOneBotApi(session) {
      * how a quoted message is resolved into content and an author.
      */
     getMsg: (messageId) => session.request('get_msg', { message_id: Number(messageId) }),
+
+    /**
+     * Upload a file into a group. `file` accepts a path, an http url or a
+     * `base64://` payload; `name` is what the group member sees.
+     */
+    uploadGroupFile: (groupId, file, name) => session.request('upload_group_file', {
+      group_id: Number(groupId),
+      file,
+      name,
+    }),
+
+    /** Same for a private chat; SnowLuma implements both actions. */
+    uploadPrivateFile: (userId, file, name) => session.request('upload_private_file', {
+      user_id: Number(userId),
+      file,
+      name,
+    }),
   };
 }
 
