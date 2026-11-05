@@ -11,6 +11,7 @@ export const SESSION_CHANNEL_LABELS = Object.freeze(Object.fromEntries(Object.en
   imessage: ['iMessage', 'iMessage'],
   matrix: ['Matrix', 'Matrix'],
   office: ['AI Office', 'AI Office'],
+  onebot: ['OneBot', 'OneBot'],
 }).map(([channel, labels]) => [channel, Object.freeze(labels)])));
 
 /** Read only the exact, leading title prefix emitted by dsh-im. */
