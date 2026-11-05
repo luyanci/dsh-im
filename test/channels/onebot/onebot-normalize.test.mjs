@@ -215,4 +215,19 @@ test('the sender display name prefers the group card', () => {
   assert.equal(message.contextSource().senderName, 'YC酱⁧~啾⁦');
   assert.equal(message.contextSource().conversationTitle, '小号集合！');
   assert.equal(message.senderRole, 'owner');
+  // Group prompts are prefixed with the speaker, so members stay distinguishable.
+  assert.equal(message.speakerName, 'YC酱⁧~啾⁦');
+});
+
+test('a sender with no card or nickname falls back to the QQ number', () => {
+  const message = normalizeOneBotEvent({
+    post_type: 'message',
+    message_type: 'group',
+    group_id: GROUP_ID,
+    user_id: USER_ID,
+    message_id: 1,
+    sender: { user_id: USER_ID },
+    message: [{ type: 'text', data: { text: 'x' } }],
+  }, { selfId: SELF_ID, groupTriggers: triggers });
+  assert.equal(message.speakerName, `QQ ${USER_ID}`);
 });

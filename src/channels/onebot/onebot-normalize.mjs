@@ -249,6 +249,9 @@ export function normalizeOneBotEvent(event, {
 
   const conversationId = String(chatId);
   const key = `${direct ? 'direct' : 'group'}:${conversationId}`;
+  const senderName = event.sender?.card
+    || event.sender?.nickname
+    || `QQ ${senderId}`;
   const addressed = direct || groupTriggerAddressed(groupTriggers, {
     chatId: String(chatId),
     senderId: String(senderId),
@@ -260,15 +263,17 @@ export function normalizeOneBotEvent(event, {
     senderId: String(senderId),
     chatId: String(chatId),
     contextSource: () => ({
-      senderName: event.sender?.card
-        || event.sender?.nickname
-        || `QQ ${senderId}`,
+      senderName: senderName,
       senderUsername: undefined,
       conversationTitle: direct ? undefined : event.group_name ?? undefined,
       chatId: String(chatId),
       threadId: undefined,
     }),
     senderIsBot: false,
+    // Group prompts are prefixed with the speaker, so the model can tell who is
+    // talking; without it every member reads as the same unnamed voice.
+    speakerName: senderName,
+    senderName: senderName,
     senderRole: event.sender?.role ?? undefined,
     kind: direct ? 'direct' : 'group',
     conversationId,
