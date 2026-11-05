@@ -1,0 +1,62 @@
+/**
+ * OneBot v11 actions the channel actually needs.
+ *
+ * The channel receives and sends; it does not moderate. Group management
+ * (`set_group_ban`, `set_group_kick`, `delete_msg`, member lookups) belongs to a
+ * workspace-side caller — see `docs/onebot-channel.md` §7.1.
+ *
+ * Message payloads are built here as segment arrays, because the protocol end is
+ * configured with `messageFormat: array` and never receives CQ strings.
+ */
+
+/** A plain text segment. */
+export function textSegment(text) {
+  return { type: 'text', data: { text: String(text) } };
+}
+
+/** An image segment. `file` is whatever the protocol end accepts; see §5. */
+export function imageSegment(file) {
+  return { type: 'image', data: { file: String(file) } };
+}
+
+/**
+ * Wrap a session's `request()` in the handful of actions this channel uses.
+ * Every method returns the action's `data` and throws on a failed retcode.
+ */
+export function createOneBotApi(session) {
+  if (session === undefined || typeof session?.request !== 'function') {
+    throw new Error('createOneBotApi needs a connected OneBot session');
+  }
+  return {
+    /** `{ user_id, nickname }` of the logged-in account. */
+    getLoginInfo: () => session.request('get_login_info'),
+
+    /** Send to a private chat; resolves `{ message_id }`. */
+    sendPrivateMsg: (userId, message) => session.request('send_private_msg', {
+      user_id: Number(userId),
+      message,
+    }),
+
+    /** Send to a group; resolves `{ message_id }`. */
+    sendGroupMsg: (groupId, message) => session.request('send_group_msg', {
+      group_id: Number(groupId),
+      message,
+    }),
+
+    /**
+     * Fetch one message by id. The reply segment carries only an id, so this is
+     * how a quoted message is resolved into content and an author.
+     */
+    getMsg: (messageId) => session.request('get_msg', { message_id: Number(messageId) }),
+  };
+}
+
+/**
+ * Send one text through whichever route the conversation needs.
+ * `conversation` is `{ kind: 'direct', userId }` or `{ kind: 'group', groupId }`.
+ */
+export async function sendTextMessage(api, conversation, text) {
+  const message = [textSegment(text)];
+  if (conversation.kind === 'group') return api.sendGroupMsg(conversation.groupId, message);
+  return api.sendPrivateMsg(conversation.userId, message);
+}
