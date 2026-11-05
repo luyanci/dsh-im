@@ -3,6 +3,7 @@ import * as React from 'react';
 import { ConnectionError } from '../../connection-error.js';
 import { OneBotLogoGlyph } from '../../channel-logos.js';
 import { h, localizeTemplate, localizeText } from '../../i18n.js';
+import { WorkspaceEditor } from '../../workspace-editor.js';
 import { installDingtalkStyles } from '../dingtalk/styles.js';
 import {
   ONEBOT_ENDPOINTS,
@@ -51,7 +52,7 @@ function Field({ label, hint, children }) {
     hint ? h('span', { className: 'dob-hint' }, hint) : null);
 }
 
-function AccountCard({ account, busy, removing, onRestart, onRequestRemove, onCancelRemove, onConfirmRemove }) {
+function AccountCard({ account, busy, removing, onRestart, onWorkspaceSave, onRequestRemove, onCancelRemove, onConfirmRemove }) {
   const state = accountState(account);
   return h('article', { className: 'ddt-card dim-botCard', 'data-bot-id': account.botId },
     h('div', { className: 'ddt-cardBody dim-botCardBody' },
@@ -67,6 +68,14 @@ function AccountCard({ account, busy, removing, onRestart, onRequestRemove, onCa
         ? h('p', { className: 'dob-error' }, account.error)
         : h('p', { className: 'dob-hint' },
           localizeTemplate('监听地址 {address}', { address: addressOf(account) })),
+      account.workspace
+        ? h('div', { className: 'dob-workspace' },
+          h(WorkspaceEditor, {
+            workspace: account.workspace,
+            onSave: onWorkspaceSave,
+            disabled: Boolean(busy) || removing,
+          }))
+        : null,
       h('div', { className: 'ddt-actions dim-viewActions' },
         h(Button, { onClick: onRestart, disabled: Boolean(busy) || removing },
           busy === 'reconnect' ? '正在重启…' : '重启监听'),
@@ -300,6 +309,10 @@ export function OneBotSettingsTab({ rpcCall }) {
             setBusyBot(account.botId);
             void run('reconnect', () => invoke(ONEBOT_ENDPOINTS.restartBot, { botId: account.botId }))
               .finally(() => { if (mounted.current) setBusyBot(null); });
+          },
+          onWorkspaceSave: async (workspace) => {
+            const value = await invoke(ONEBOT_ENDPOINTS.setWorkspace, { botId: account.botId, workspace });
+            if (mounted.current) setSnapshot(normalizeSnapshot(value));
           },
           onRequestRemove: () => setRemoveTarget(account.botId),
           onCancelRemove: () => setRemoveTarget(null),

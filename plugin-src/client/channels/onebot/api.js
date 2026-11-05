@@ -9,6 +9,11 @@ export const ONEBOT_ENDPOINTS = Object.freeze({
   restartBot: 'bot.reconnect',
   addBot: 'onebot.add-bot',
   setSettings: 'onebot.set-settings',
+  setWorkspace: 'bot.workspace.set',
+  setModel: 'bot.model.set',
+  setAgentPreset: 'bot.agent-preset.set',
+  setAccessPolicy: 'bot.access-policy.set',
+  setAlias: 'bot.alias.set',
 });
 
 /** Unwrap the `{ ok, value }` envelope the management RPC returns. */
@@ -41,6 +46,12 @@ export function normalizeSnapshot(value) {
       connectionState: String(bot.connectionState ?? 'idle'),
       nickname: typeof bot.nickname === 'string' ? bot.nickname : null,
       error: bot.error?.message ?? null,
+      // Decorated by the workspace-aware controller; the settings rows read these.
+      workspace: typeof bot.workspace === 'string' && bot.workspace ? bot.workspace : null,
+      alias: typeof bot.alias === 'string' ? bot.alias : null,
+      model: bot.model ?? null,
+      agentPreset: bot.agentPreset ?? null,
+      accessPolicy: bot.accessPolicy ?? null,
     })),
   };
 }
