@@ -51,7 +51,7 @@
 | `reply` 段 | `{"type":"reply","data":{"id":"392264416"}}`，只有 id；**`get_msg` 能取回完整消息**（含 `message` 数组、`sender`、`real_id`），引用内容靠它补 |
 | 图片段 | `{"type":"image","data":{"file":"DD49F613….jpg","url":"https://multimedia.nt.qq.com.cn/download?…"}}` —— `file` 是**裸资源名**，内容是**带签名的 url**；入站必须下载 url，不能把 `file` 当路径，也不是 base64 |
 | `message_id` | **符号不稳定**：同一轮的私聊/群聊里既有负数也有正数，且响应里另有 `real_id`。一律当不透明字符串 |
-| 自发回显 | 协议端 `reportSelfMessage: false` 时**不会**收到自己发的消息；`send_private_msg` 只返回 `{"message_id":…}` |
+| 自发回显 | SnowLuma 在 `reportSelfMessage: false` 时**不会**收到自己发的消息；`send_private_msg` 只返回 `{"message_id":…}`。**不能依赖这个开关**，见 §5 自环 |
 | 其他事件 | `notice` 里有 `notify/input_status`（`status_text: "对方正在输入..."`），可用于原生呈现的输入状态 |
 
 `get_login_info` 返回 `{user_id, nickname}`，可用于设置卡的「当前账号」显示。
@@ -110,6 +110,21 @@ i18n：所有新 `t('中文')` 字面量必须同时补 en / ru，否则 `i18n-c
 | `forward` / `node` | 暂不支持 | 第一版落占位 `[合并转发]`，Deferred |
 
 自环：`post_type === 'message_sent'` 或 `sender.user_id === self_id` 一律丢弃，否则会自己跟自己说话。
+
+**这条必须自己兜住，不能指望协议端配置**：SnowLuma 有 `reportSelfMessage` 可以关掉上报，但其他 OneBot 实现不一定有这个开关，也不一定默认关闭（NapCat、Lagrange、go-cqhttp 等各家行为不一致），有的会推 `message_sent`，有的把自发消息混进 `message` 事件里。所以过滤放在我们这侧，按 `sender.user_id === self_id`（字符串比较）和 `post_type === 'message_sent'` 双条件丢弃；`reportSelfMessage` 只当作减少噪音的加分项。
+
+### 5.1 协议端差异清单
+
+不同 OneBot v11 实现在这些点上有分歧，通道侧一律按「防御式」处理：
+
+| 分歧点 | SnowLuma 实测 | 其他实现 | 我们的策略 |
+|---|---|---|---|
+| 自发消息回显 | 可用 `reportSelfMessage: false` 关闭 | 不一定有开关，或默认上报 | 自己按 `sender.user_id` 过滤，不依赖配置 |
+| `message` 字段形态 | `array`（段数组，配置可选） | 有的是 CQ 码字符串 | 两者都解析：数组直接读，字符串走 CQ 码解码 |
+| 图片段 | `file` 裸资源名 + 签名 `url` | 可能是 `file://`、`base64://` 或仅 `file` | 按优先级 url → base64 → file 解析路径 |
+| `message_id` | 正负号不稳定，另有 `real_id` | 有的会随平台变化 | 当不透明字符串，不参与数值运算 |
+| `@` 段 `qq` | 字符串 | 有实现给数字 | `String(qq) === String(self_id)` |
+| 角色 | `Universal` / `Api` / `Event` 拆分 | 只有单一连接 | 第一版要求 `Universal`，拆分留后置 |
 
 ## 6 渠道能力差异
 
