@@ -63,6 +63,19 @@ test('a delivery block degrades to its text', async () => {
   assert.deepEqual(api.calls[0].message, [{ type: 'text', data: { text: '# 标题\n\n正文' } }]);
 });
 
+test('an artifact descriptor ({ bytes, fileName }) is what the bridge actually hands over', async () => {
+  const api = fakeApi();
+  const bot = createOneBotBotClient({ api });
+  const bytes = Buffer.from('png-bytes');
+  await bot.sendImage({ userId: '2058282593' }, {
+    bytes,
+    fileName: 'generated.png',
+    mediaType: 'image/png',
+  });
+  assert.equal(api.calls[0].action, 'send_private_msg');
+  assert.equal(api.calls[0].message[0].data.file, base64ImageFile(bytes));
+});
+
 test('an image is sent as base64 first and the working form is remembered', async () => {
   const api = fakeApi();
   const bot = createOneBotBotClient({ api });
@@ -95,7 +108,7 @@ test('a failing base64 form falls back to the artifact url', async () => {
 
 test('an image with neither data nor a url fails loudly', async () => {
   const bot = createOneBotBotClient({ api: fakeApi() });
-  await assert.rejects(() => bot.sendImage({ groupId: '1' }, { mediaType: 'image/png' }), /needs data or a path/);
+  await assert.rejects(() => bot.sendImage({ groupId: '1' }, { mediaType: 'image/png' }), /needs bytes, data or a path/);
 });
 
 test('there is no typing indicator to send', () => {

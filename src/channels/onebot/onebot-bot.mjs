@@ -105,15 +105,17 @@ export function createOneBotBotClient({
   }
 
   /**
-   * Send one image artifact. `file` is the delivery shape the artifact layer
-   * passes around: either `{ data }` bytes or `{ path }` on disk, plus
-   * `mediaType`/`name`.
+   * Send one image artifact. The artifact layer hands over
+   * `{ bytes, fileName, mediaType }`; a `{ data }` buffer or `{ path }` is also
+   * accepted so a caller (and the tests) can pass bytes directly.
    */
   async function sendImage(target, file) {
-    const bytes = typeof file?.data !== 'undefined'
-      ? file.data
-      : file?.path ? await readFileImpl(file.path) : undefined;
-    if (bytes === undefined) throw new Error('OneBot image delivery needs data or a path');
+    const bytes = Buffer.isBuffer(file?.bytes) ? file.bytes
+      : typeof file?.data !== 'undefined' ? file.data
+        : file?.path ? await readFileImpl(file.path) : undefined;
+    if (bytes === undefined) {
+      throw new Error('OneBot image delivery needs bytes, data or a path');
+    }
     // §5: the accepted form depends on the protocol end, so try base64 first and
     // fall back to the http url when the artifact carries one.
     const attempts = resolvedFormat === null ? ['base64', 'url'] : [resolvedFormat];
