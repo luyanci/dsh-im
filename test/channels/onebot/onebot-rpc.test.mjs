@@ -26,7 +26,7 @@ test('status takes no fields and returns the snapshot', async () => {
 
   const rejected = await handler(ONEBOT_ENDPOINTS.status, { unexpected: 1 });
   assert.equal(rejected.ok, false);
-  assert.equal(rejected.error.code, 'onebot-invalid-payload');
+  assert.equal(rejected.error.code, 'bad-request');
 });
 
 test('add-bot requires a QQ number and forwards the rest', async () => {

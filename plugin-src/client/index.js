@@ -16,6 +16,7 @@ import {
   IMessageLogoGlyph,
   EmailLogoGlyph,
   MatrixLogoGlyph,
+  OneBotLogoGlyph,
 } from './channel-logos.js';
 import { DINGTALK_RPC_CHANNEL } from './channels/dingtalk/api.js';
 import { DingtalkSettingsTab } from './channels/dingtalk/index.js';
@@ -28,6 +29,9 @@ import { installFeishuStyles } from './channels/feishu/styles.js';
 import { QQ_RPC_CHANNEL } from './channels/qq/api.js';
 import { QqSettingsTab } from './channels/qq/index.js';
 import { installQqStyles } from './channels/qq/styles.js';
+import { ONEBOT_RPC_CHANNEL } from './channels/onebot/api.js';
+import { OneBotSettingsTab } from './channels/onebot/index.js';
+import { installOneBotStyles } from './channels/onebot/styles.js';
 import { OFFICE_RPC_CHANNEL } from './channels/office/api.js';
 import { OfficeSettingsTab } from './channels/office/index.js';
 import { installOfficeStyles } from './channels/office/styles.js';
@@ -108,6 +112,7 @@ const CHANNELS = Object.freeze([
   { id: 'dingtalk', label: '钉钉' },
   { id: 'wecom', label: '企业微信' },
   { id: 'qq', label: 'QQ' },
+  { id: 'onebot', label: 'OneBot' },
   { id: 'slack', label: 'Slack' },
   { id: 'telegram', label: 'Telegram' },
   { id: 'discord', label: 'Discord' },
@@ -136,6 +141,10 @@ function DingtalkLogo() {
 
 function QqLogo() {
   return h('span', { className: 'dim-logo dim-logoQq', 'aria-hidden': 'true' }, h(QqLogoGlyph));
+}
+
+function OneBotLogo() {
+  return h('span', { className: 'dim-logo dim-logoOneBot', 'aria-hidden': 'true' }, h(OneBotLogoGlyph));
 }
 
 function WecomLogo() {
@@ -193,6 +202,7 @@ function ChannelLogo({ channel }) {
   if (channel === 'wecom') return h(WecomLogo);
   if (channel === 'wecomApp') return h(WecomAppLogo);
   if (channel === 'qq') return h(QqLogo);
+  if (channel === 'onebot') return h(OneBotLogo);
   if (channel === 'slack') return h(SlackLogo);
   if (channel === 'telegram') return h(TelegramLogo);
   if (channel === 'discord') return h(DiscordLogo);
@@ -227,6 +237,7 @@ export function IMSettingsTab({
   emailRpcCall,
   matrixRpcCall,
   qqRpcCall,
+  onebotRpcCall,
   slackRpcCall,
   telegramRpcCall,
   wecomRpcCall,
@@ -281,6 +292,7 @@ export function IMSettingsTab({
     discordRpcCall,
     feishuRpcCall,
     qqRpcCall,
+    onebotRpcCall,
     slackRpcCall,
     telegramRpcCall,
     wecomRpcCall,
@@ -312,6 +324,7 @@ export function IMSettingsTab({
     matrixRpcCall,
     officeRpcCall,
     qqRpcCall,
+    onebotRpcCall,
     reportLoopbackRecovery,
     slackRpcCall,
     telegramRpcCall,
@@ -442,6 +455,8 @@ export function IMSettingsTab({
                   ? h(WecomAppSettingsTab, { rpcCall: rpcCalls.wecomAppRpcCall })
                   : active.id === 'qq'
                     ? h(QqSettingsTab, { rpcCall: rpcCalls.qqRpcCall })
+                    : active.id === 'onebot'
+                      ? h(OneBotSettingsTab, { rpcCall: rpcCalls.onebotRpcCall })
                     : active.id === 'slack'
                       ? h(SlackSettingsTab, { rpcCall: rpcCalls.slackRpcCall })
                     : active.id === 'telegram'
@@ -538,6 +553,8 @@ export function apply(ctx) {
     managementRpc(ctx.connection, DINGTALK_RPC_CHANNEL, endpoint, payload, signal);
   const qqRpcCall = (endpoint, payload, signal) =>
     managementRpc(ctx.connection, QQ_RPC_CHANNEL, endpoint, payload, signal);
+  const onebotRpcCall = (endpoint, payload, signal) =>
+    managementRpc(ctx.connection, ONEBOT_RPC_CHANNEL, endpoint, payload, signal);
   const wecomRpcCall = (endpoint, payload, signal) =>
     managementRpc(ctx.connection, WECOM_RPC_CHANNEL, endpoint, payload, signal);
   const wecomAppRpcCall = (endpoint, payload, signal) =>
@@ -580,6 +597,7 @@ export function apply(ctx) {
     discordRpcCall,
     feishuRpcCall,
     qqRpcCall,
+    onebotRpcCall,
     slackRpcCall,
     telegramRpcCall,
     wecomRpcCall,

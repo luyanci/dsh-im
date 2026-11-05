@@ -23,6 +23,7 @@ import whatsapp from './i18n-ru/whatsapp.mjs';
 import matrix from './i18n-ru/matrix.mjs';
 import office from './i18n-ru/office.mjs';
 import email from './i18n-ru/email.mjs';
+import onebot from './i18n-ru/onebot.mjs';
 
 export const RU = Object.freeze(Object.assign(
   {},
@@ -45,4 +46,5 @@ export const RU = Object.freeze(Object.assign(
   matrix,
   office,
   email,
+  onebot,
 ));

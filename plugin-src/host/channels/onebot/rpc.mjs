@@ -13,10 +13,13 @@ import { ONEBOT_IMAGE_FORMATS } from '../../../../src/channels/onebot/onebot-con
 export const ONEBOT_RPC_CHANNEL = '/onebot';
 
 export const ONEBOT_ENDPOINTS = Object.freeze({
-  status: 'onebot.status',
+  // Shared management names so the generic channel machinery (and the startup
+  // guards) recognise the surface; the two OneBot-specific calls carry the
+  // listener settings, which no other channel has.
+  status: 'connection.status',
+  deleteBot: 'bot.delete',
+  restartBot: 'bot.reconnect',
   addBot: 'onebot.add-bot',
-  deleteBot: 'onebot.delete-bot',
-  restartBot: 'onebot.restart-bot',
   setSettings: 'onebot.set-settings',
 });
 
@@ -59,6 +62,11 @@ function validSelfIds(value) {
 
 function failure(code, message) {
   return { ok: false, error: { code, message, details: {} } };
+}
+
+/** Invalid payloads carry the shared `bad-request` code the Host expects. */
+function invalidPayload(message) {
+  return failure('bad-request', message);
 }
 
 const SETTINGS_KEYS = ['botId', 'host', 'port', 'path', 'imageSendFormat', 'selfIds'];
@@ -113,7 +121,7 @@ export function createOneBotRpcHandler(controller) {
       return failure('onebot-unknown-endpoint', `Unknown OneBot endpoint: ${endpoint}`);
     }
     const invalid = validate(endpoint, payload);
-    if (invalid !== null) return failure('onebot-invalid-payload', invalid);
+    if (invalid !== null) return invalidPayload(invalid);
     try {
       switch (endpoint) {
         case ONEBOT_ENDPOINTS.status:

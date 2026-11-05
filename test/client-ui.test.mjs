@@ -191,7 +191,7 @@ test('removing the first account preserves collapse styles and toggling for rema
   }
 });
 
-test('IM settings renders twelve IM channels plus the AI Office connector', async () => {
+test('IM settings renders thirteen IM channels plus the AI Office connector', async () => {
   const { default: packageMetadata } = await import('../package.json', {
     with: { type: 'json' },
   });
@@ -204,6 +204,7 @@ test('IM settings renders twelve IM channels plus the AI Office connector', asyn
     wecomRpcCall: async () => ({ ok: true, value: {} }),
     wecomAppRpcCall: async () => ({ ok: true, value: {} }),
     qqRpcCall: async () => ({ ok: true, value: {} }),
+    onebotRpcCall: async () => ({ ok: true, value: {} }),
     slackRpcCall: async () => ({ ok: true, value: {} }),
     telegramRpcCall: async () => ({ ok: true, value: {} }),
     discordRpcCall: async () => ({ ok: true, value: {} }),
@@ -290,9 +291,9 @@ test('IM settings renders twelve IM channels plus the AI Office connector', asyn
   assert.match(markup, /dim-logoOffice/);
   assert.match(styles, /\.dim-logoFeishu svg \{ width: 28px; height: 28px; \}/);
   // This render's `emailRpcCall` never reports the channel as
-  // enabled, so the mailbox entry point is omitted: twelve IM channels plus the
+  // enabled, so the mailbox entry point is omitted: thirteen IM channels plus the
   // AI Office connector. The email tab is covered separately below.
-  assert.equal((markup.match(/role="tab"/g) ?? []).length, 13);
+  assert.equal((markup.match(/role="tab"/g) ?? []).length, 14);
   assert.equal((markup.match(/aria-selected="true"/g) ?? []).length, 1);
   assert.doesNotMatch(markup, /role="switch"|type="checkbox"/);
   assert.doesNotMatch(markup, /dim-chevron|扫码绑定<\/small>|扫码接入<\/small>/);

@@ -51,13 +51,17 @@ export class OneBotController {
     if (!configStore || typeof configStore.list !== 'function') {
       throw new TypeError('OneBot requires a config store');
     }
-    if (!harness || !state) throw new TypeError('OneBot requires the harness client and state store');
+    // Either one shared store or a per-account loader; production passes the
+    // loader because each QQ account owns its own conversation state.
+    if (!harness || (!state && typeof stateFor !== 'function')) {
+      throw new TypeError('OneBot requires the harness client and a state store');
+    }
     this.#credentials = credentials ?? null;
     this.#configStore = configStore;
     this.#createRuntime = createRuntime;
     this.#logger = logger;
     this.#harness = harness;
-    this.#state = state;
+    this.#state = state ?? null;
     // Each account keeps its own conversation state (seen ids, queue recovery),
     // so production passes a per-bot loader instead of one shared store.
     this.#stateFor = typeof stateFor === 'function' ? stateFor : () => this.#state;
