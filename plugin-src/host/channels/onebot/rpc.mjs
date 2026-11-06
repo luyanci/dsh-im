@@ -91,7 +91,7 @@ const SHARED_ENDPOINTS = [
   [SET_MODEL_ENDPOINT, validModelPayload, 'updateModel', (payload) => [payload.botId, payload.model]],
   [SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload, 'updateAgentPreset', (payload) => [payload.botId, payload.agentPreset]],
   [SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload, 'updateContextEnhancement', (payload) => [payload.botId, payload.config]],
-  [SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload, 'updateBusyMessageMode', (payload) => [payload.botId, payload.mode]],
+  [SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload, 'updateBusyMessageMode', (payload) => [payload.botId, payload.busyMessageMode]],
   [SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload, 'updateAccessPolicy', (payload) => [payload.botId, payload.policy]],
   [SET_ALIAS_ENDPOINT, validAliasPayload, 'updateAlias', (payload) => [payload.botId, payload.alias]],
 ];

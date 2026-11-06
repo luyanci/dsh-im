@@ -71,6 +71,27 @@ test('set-settings splits the bot id from the patch', async () => {
   assert.deepEqual(controller.calls[0], ['settings', 'onebot_abc', { port: 6811 }]);
 });
 
+test('message-mode.set forwards busyMessageMode, not a mode field', async () => {
+  // Same class of bug as the access-policy row: the payload carries
+  // `busyMessageMode`, so reading `payload.mode` handed the controller undefined
+  // and every save failed with "Message mode must be queue or steer".
+  const controller = fakeController();
+  controller.updateBusyMessageMode = async (botId, mode) => {
+    controller.calls.push(['mode', botId, mode]);
+    return { botId, busyMessageMode: mode };
+  };
+
+  const handler = createOneBotRpcHandler(controller);
+  const result = await handler(ONEBOT_ENDPOINTS.setBusyMessageMode, { botId: 'onebot_abc', busyMessageMode: 'steer' });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(controller.calls[0], ['mode', 'onebot_abc', 'steer']);
+
+  const invalid = await handler(ONEBOT_ENDPOINTS.setBusyMessageMode, { botId: 'onebot_abc', busyMessageMode: 'later' });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.error.code, 'bad-request');
+});
+
 test('access-policy.set forwards the policy itself, not the envelope', async () => {
   // Regression: this row passed the whole { botId, policy } payload as the policy,
   // so the controller received an object without direct/group and every save
