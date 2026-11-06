@@ -12,7 +12,10 @@
  * messages. QQ has no message editing and no recall here, so there is nothing to
  * update or delete afterwards.
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { imageSegment, textSegment } from './onebot-api.mjs';
 
@@ -44,6 +47,22 @@ export function splitOneBotText(text, limit = ONEBOT_TEXT_CHUNK) {
 /** Encode bytes as the `base64://` payload OneBot implementations accept. */
 export function base64ImageFile(data) {
   return `base64://${Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data).toString('base64')}`;
+}
+
+/**
+ * The `file` form takes a path, and an artifact only hands over bytes: stage them
+ * in the temp directory, hand the protocol end a `file://` URI, then remove the
+ * copy. Only useful when the protocol end runs on this machine.
+ */
+async function stageFileUri(bytes, name) {
+  const extension = typeof name === 'string' && /\.[a-z0-9]{1,8}$/i.test(name)
+    ? name.slice(name.lastIndexOf('.')) : '';
+  const path = join(tmpdir(), `dsh-im-onebot-${randomUUID()}${extension}`);
+  await writeFile(path, bytes, { mode: 0o600 });
+  return {
+    uri: `file://${path.replaceAll('\\', '/')}`,
+    cleanup: () => unlink(path).catch(() => {}),
+  };
 }
 
 function targetKind(target) {
@@ -117,14 +136,20 @@ export function createOneBotBotClient({
       throw new Error('OneBot image delivery needs bytes, data or a path');
     }
     // §5: the accepted form depends on the protocol end, so try base64 first and
-    // fall back to the http url when the artifact carries one.
+    // fall back to the http url when the artifact carries one. An explicit `file`
+    // setting stages a temp copy instead of pretending base64 was what it asked for.
     const attempts = resolvedFormat === null ? ['base64', 'url'] : [resolvedFormat];
     let lastError;
     for (const attempt of attempts) {
+      let cleanup = null;
       try {
-        const handle = attempt === 'url'
-          ? file?.url
-          : base64ImageFile(bytes);
+        let handle;
+        if (attempt === 'url') handle = file?.url;
+        else if (attempt === 'file') {
+          const staged = await stageFileUri(bytes, file?.fileName ?? file?.name);
+          handle = staged.uri;
+          cleanup = staged.cleanup;
+        } else handle = base64ImageFile(bytes);
         if (typeof handle !== 'string' || handle.length === 0) throw new Error(`image form ${attempt} needs a url`);
         const result = await send(target, [imageSegment(handle)]);
         resolvedFormat = attempt;
@@ -132,6 +157,8 @@ export function createOneBotBotClient({
       } catch (error) {
         lastError = error;
         logger?.warn?.(`OneBot image send failed as ${attempt}: ${error?.message ?? error}`);
+      } finally {
+        if (cleanup !== null) await cleanup();
       }
     }
     throw lastError ?? new Error('OneBot image delivery failed');

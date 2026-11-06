@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import {
   base64ImageFile,
@@ -117,6 +118,16 @@ test('a failing base64 form falls back to the artifact url', async () => {
 test('an image with neither data nor a url fails loudly', async () => {
   const bot = createOneBotBotClient({ api: fakeApi() });
   await assert.rejects(() => bot.sendImage({ groupId: '1' }, { mediaType: 'image/png' }), /needs bytes, data or a path/);
+});
+
+test('the explicit file form stages a file:// uri and cleans it up', async () => {
+  const api = fakeApi();
+  const bot = createOneBotBotClient({ api, format: 'file' });
+  await bot.sendImage({ groupId: '1' }, { bytes: Buffer.from('png'), fileName: 'a.png' });
+  const handle = api.calls[0].message[0].data.file;
+  assert.match(handle, /^file:\/\/.*dsh-im-onebot-[0-9a-f-]+\.png$/);
+  // The temp copy must not outlive the send.
+  await assert.rejects(() => readFile(handle.slice('file://'.length)), /ENOENT/);
 });
 
 test('there is no typing indicator to send', () => {

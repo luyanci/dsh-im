@@ -170,6 +170,8 @@ export class OneBotRuntime {
       port: this.#config.port,
       path: this.#config.path,
       accessToken: this.#config.accessToken ?? '',
+      // One listener, one account: the protocol end must claim this QQ number.
+      selfId: this.#config.selfId,
       selfIds: this.#config.selfIds ?? [],
       logger: this.#logger,
     });

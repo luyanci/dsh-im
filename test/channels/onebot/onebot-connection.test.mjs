@@ -13,9 +13,9 @@ import { createOneBotApi, sendTextMessage, textSegment } from '../../../src/chan
 
 const SELF_ID = '2951316926';
 
-function handshake(headers = {}, { url = '/onebot/v11/ws', accessToken = '', selfIds = [] } = {}) {
+function handshake(headers = {}, { url = '/onebot/v11/ws', accessToken = '', selfId, selfIds = [] } = {}) {
   const requestUrl = new URL(`http://127.0.0.1${url}`);
-  return checkOneBotHandshake({ headers, url: requestUrl, accessToken, selfIds });
+  return checkOneBotHandshake({ headers, url: requestUrl, accessToken, selfId, selfIds });
 }
 
 test('a handshake needs both identity headers', () => {
@@ -36,7 +36,17 @@ test('an account allowlist and the action role are enforced', () => {
   assert.equal(handshake(base, { selfIds: ['10001'] }).status, 403);
   assert.equal(handshake(base, { selfIds: [SELF_ID] }).ok, true);
   assert.equal(handshake({ ...base, 'x-client-role': 'Event' }).status, 400);
-  assert.equal(handshake({ ...base, 'x-client-role': 'Api' }).ok, true);
+  // An Api-only client carries actions but no events, so it must be refused.
+  assert.equal(handshake({ ...base, 'x-client-role': 'Api' }).status, 400);
+  assert.match(handshake({ ...base, 'x-client-role': 'Api' }).reason, /Universal/);
+});
+
+test('the handshake account must match the configured QQ number', () => {
+  const base = { 'x-self-id': SELF_ID, 'x-client-role': ONEBOT_UNIVERSAL_ROLE };
+  assert.equal(handshake(base, { selfId: SELF_ID }).ok, true);
+  const wrong = handshake(base, { selfId: '10001' });
+  assert.equal(wrong.status, 403);
+  assert.match(wrong.reason, /does not match/);
 });
 
 async function startServer(options = {}) {

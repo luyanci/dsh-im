@@ -44,7 +44,7 @@ function headerValue(headers, name) {
  * `{ ok: false, status, reason }`; never throws, so the caller can refuse the
  * handshake with a plain HTTP status.
  */
-export function checkOneBotHandshake({ headers, url, accessToken = '', selfIds = [] }) {
+export function checkOneBotHandshake({ headers, url, accessToken = '', selfId: expectedSelfId, selfIds = [] }) {
   const selfId = headerValue(headers, 'x-self-id').trim();
   const role = headerValue(headers, 'x-client-role').trim();
   if (selfId.length === 0) return { ok: false, status: 400, reason: 'missing X-Self-ID' };
@@ -55,6 +55,24 @@ export function checkOneBotHandshake({ headers, url, accessToken = '', selfIds =
   const allow = Array.isArray(selfIds) ? selfIds.map(String).filter(Boolean) : [];
   if (allow.length > 0 && !allow.includes(selfId)) {
     return { ok: false, status: 403, reason: `account ${selfId} is not allowed` };
+  }
+  // One listener serves one account: a protocol end claiming another X-Self-ID
+  // would make the runtime adopt the wrong QQ number, so replies and the
+  // workspace would belong to someone else.
+  const expected = expectedSelfId === undefined || expectedSelfId === null
+    ? '' : String(expectedSelfId).trim();
+  if (expected.length > 0 && selfId !== expected) {
+    return { ok: false, status: 403, reason: `account ${selfId} does not match ${expected}` };
+  }
+  // v1 speaks to a Universal connection only: an Api-only client carries actions
+  // but no events, and an Event-only client cannot send, so accepting either
+  // would leave an account that looks ready but never talks.
+  if (role.toLowerCase() !== ONEBOT_UNIVERSAL_ROLE.toLowerCase()) {
+    return {
+      ok: false,
+      status: 400,
+      reason: `role ${role} is not supported; set the protocol end to Universal`,
+    };
   }
   if (!ACTION_ROLES.has(role.toLowerCase())) {
     return { ok: false, status: 400, reason: `role ${role} cannot carry actions` };
@@ -187,6 +205,7 @@ export function createOneBotServer({
   port = 6700,
   path = '/onebot/v11/ws',
   accessToken = '',
+  selfId,
   selfIds = [],
   actionTimeoutMs = DEFAULT_ACTION_TIMEOUT_MS,
   heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
@@ -206,6 +225,7 @@ export function createOneBotServer({
         headers: info.req?.headers ?? {},
         url,
         accessToken,
+        selfId,
         selfIds,
       });
       if (!verdict.ok) {
