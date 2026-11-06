@@ -1,8 +1,8 @@
 {
-  "name": "@xmanrui/dsh-im",
+  "name": "@luyanci/dsh-im",
   "version": "5.11.0",
   "icon": "./assets/logo-plugin-message-link-gradient.webp",
-  "description": "把微信、飞书、企微、钉钉、QQ、Telegram、WhatsApp、Slack、Discord、Matrix接入DSH。 Connect Telegram, WhatsApp, Slack, Discord, Matrix, WeChat, Feishu, WeCom, DingTalk, and QQ to DSH.",
+  "description": "把微信、飞书、企微、钉钉、QQ、Onebot、Telegram、WhatsApp、Slack、Discord、Matrix接入DSH。 Connect Telegram, WhatsApp, Slack, Discord, Matrix, WeChat, Feishu, WeCom, DingTalk, QQ and Onebot to DSH.",
   "keywords": [
     "deepseek-harness",
     "dsh",
@@ -17,6 +17,7 @@
     "wecom",
     "dingtalk",
     "qq",
+    "onebot",
     "slack",
     "telegram",
     "discord",
@@ -25,7 +26,16 @@
     "matrix",
     "ai-office"
   ],
-  "author": "xmanrui (https://github.com/xmanrui)",
+  "authors": {
+    "xmanrui": {
+      "name": "xmanrui",
+      "url": "https://github.com/xmanrui"
+    },
+    "luyanci": {
+      "name": "luyanci",
+      "url": "https://github.com/luyanci"
+    }
+  },
   "license": "MIT",
   "type": "module",
   "repository": {
