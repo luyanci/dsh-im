@@ -46,6 +46,12 @@ export const ACCESS_CHANNEL_DEFINITIONS = Object.freeze({
     groupUserLabel: '群成员 Open ID',
     groupPlaceholder: '填写 member_openid',
   }),
+  onebot: Object.freeze({
+    directUserLabel: 'QQ 号',
+    directPlaceholder: '填写数字 QQ 号',
+    groupUserLabel: '群成员 QQ 号',
+    groupPlaceholder: '填写数字 QQ 号',
+  }),
   slack: Object.freeze({
     directUserLabel: 'Slack User ID',
     directPlaceholder: 'U0123456789',

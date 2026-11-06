@@ -4,6 +4,7 @@ import { apply as applyDiscord } from './channels/discord/index.mjs';
 import { apply as applyOffice } from './channels/office/index.mjs';
 import { apply as applyFeishu } from './channels/feishu/index.mjs';
 import { apply as applyQq } from './channels/qq/index.mjs';
+import { apply as applyOneBot } from './channels/onebot/index.mjs';
 import { apply as applySlack } from './channels/slack/index.mjs';
 import { apply as applyTelegram } from './channels/telegram/index.mjs';
 import { apply as applyWecom } from './channels/wecom/index.mjs';
@@ -69,6 +70,7 @@ export function createImHostPlugin(internals = {}) {
   const startWecom = internals.applyWecom ?? applyWecom;
   const startWecomApp = internals.applyWecomApp ?? applyWecomApp;
   const startQq = internals.applyQq ?? applyQq;
+  const startOneBot = internals.applyOneBot ?? applyOneBot;
   const startSlack = internals.applySlack ?? applySlack;
   const startTelegram = internals.applyTelegram ?? applyTelegram;
   const startDiscord = internals.applyDiscord ?? applyDiscord;
@@ -84,6 +86,7 @@ export function createImHostPlugin(internals = {}) {
     ['wecom', startWecom],
     ['wecomApp', startWecomApp],
     ['qq', startQq],
+    ['onebot', startOneBot],
     ['slack', startSlack],
     ['telegram', startTelegram],
     ['discord', startDiscord],

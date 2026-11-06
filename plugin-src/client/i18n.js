@@ -944,6 +944,56 @@ const EN = Object.freeze({
   '先在 Developer Portal 创建 Bot 并邀请到服务器，再在这里完成接入。': 'Create a bot in the Developer Portal and invite it to your server, then connect it here.',
   '填写 Discord Developer Portal 的 Bot Token': 'Enter the Bot Token from the Discord Developer Portal',
   '接入 Slack 机器人': 'Connect a Slack bot',
+  'OneBot 机器人': 'OneBot bots',
+  '接入账号': 'Add account',
+  '收起': 'Collapse',
+  'OneBot v11 反向 WebSocket。协议端（SnowLuma / NapCat / Lagrange）连到本机，插件只负责收与发。':
+    'OneBot v11 reverse WebSocket. The protocol end (SnowLuma / NapCat / Lagrange) connects to this host; the plugin only receives and sends.',
+  'QQ 号': 'QQ number',
+  '监听端口': 'Listen port',
+  '访问令牌（可选）': 'Access token (optional)',
+  '协议端配置里填同一个令牌；留空表示只靠回环地址信任。':
+    'Use the same token in the protocol-end configuration; leave it empty to trust the loopback address alone.',
+  '留空则校验关闭': 'Empty disables the check',
+  '出站图片形态': 'Outbound image form',
+  '自动（推荐）': 'Auto (recommended)',
+  'auto 会依次尝试 base64 与 url，成功后记住。':
+    'auto tries base64 and then url, and remembers the form that worked.',
+  '保存并开始监听': 'Save and start listening',
+  '正在读取状态…': 'Reading status…',
+  '还没有账号。添加后，协议端把反向 WebSocket 指向下面的地址即可。':
+    'No account yet. Add one, then point the protocol end at the address below.',
+  '已连接': 'Connected',
+  '监听中，等待协议端接入': 'Listening; waiting for the protocol end',
+  '未启动': 'Not started',
+  '重启监听': 'Restart listener',
+  '删除 {name} 并停止监听？': 'Delete {name} and stop listening?',
+  '请填写 QQ 号（5–12 位数字）。': 'Enter a QQ number (5–12 digits).',
+  '端口需在 1–65535 之间。': 'The port must be between 1 and 65535.',
+  'OneBot 操作失败': 'The OneBot operation failed.',
+  ' OneBot 反向 WebSocket': 'OneBot reverse WebSocket',
+  '群号': 'Group number',
+  '填写数字 QQ 号': 'Enter the numeric QQ number',
+  '群成员 QQ 号': 'Member QQ number',
+  '安装并启动协议端（SnowLuma / NapCat / Lagrange），登录要对接的 QQ。':
+    'Install and start the protocol end (SnowLuma / NapCat / Lagrange) and sign in to the QQ account you want to connect.',
+  '在协议端开启「反向 WebSocket」，地址填 {address}。':
+    'Enable the reverse WebSocket in the protocol end and point it at {address}.',
+  '协议端的访问令牌与本页填同一个，两边都留空表示不校验。':
+    'Use the same access token on both sides; leaving both empty disables the check.',
+  '保存后协议端会自动连上；QQ 里 @ 它、或引用它的话即可对话。':
+    'Once saved, the protocol end connects by itself. Mention the bot in QQ, or reply to one of its messages, to talk to it.',
+  '填入 QQ 号与本机监听端口，再把协议端的反向 WebSocket 指向该地址。':
+    'Enter the QQ number and a local listening port, then point the protocol end at that address.',
+  '监听地址 {address}': 'Listening on {address}',
+  '正在重启…': 'Restarting…',
+  '这会停止 {address} 的监听并删除本机保存的 OneBot 账号配置。':
+    'This stops listening on {address} and deletes the OneBot account saved on this machine.',
+  '接入 OneBot 账号': 'Connect a OneBot account',
+  '协议端（SnowLuma / NapCat / Lagrange）连接本机的反向 WebSocket；插件只负责收与发。':
+    'The protocol end (SnowLuma / NapCat / Lagrange) dials this host over a reverse WebSocket; the plugin only receives and sends.',
+  '填入 QQ 号与本机监听端口，然后把协议端的反向 WebSocket 指向下面的地址。':
+    'Enter the QQ number and a local listening port, then point the protocol end at the address below.',
   '先用 Manifest 创建并配置 Slack App': 'Create and configure a Slack app with the manifest',
   '复制配置后，在 Slack 选择 From a manifest；创建完成后生成 connections:write App Token，并将应用安装到工作区。': 'Copy the manifest and choose “From a manifest” in Slack. Then create a connections:write App Token and install the app to your workspace.',
   '复制 Manifest': 'Copy manifest',

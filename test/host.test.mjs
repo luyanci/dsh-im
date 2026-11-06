@@ -385,6 +385,7 @@ const CHANNELS = [
   ['wecom', 'applyWecom'],
   ['wecomApp', 'applyWecomApp'],
   ['qq', 'applyQq'],
+  ['onebot', 'applyOneBot'],
   ['slack', 'applySlack'],
   ['telegram', 'applyTelegram'],
   ['discord', 'applyDiscord'],

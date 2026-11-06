@@ -74,6 +74,13 @@ test('an ambiguous route refuses to resolve instead of guessing', () => {
 
 test('the private helpers stay private-chat only, as the target hints need', () => {
   assert.equal(privateDeliverySuggestionFromConversationKey('telegram', 'group:-100:42'), null);
+  // OneBot keys its private chats as `direct:<qq>`; the private-only map has to
+  // know that prefix or its chats disappear from DS Bot bindings.
+  assert.deepEqual(
+    privateDeliverySuggestionFromConversationKey('onebot', 'direct:2058282593'),
+    { kind: 'user', route: { userId: '2058282593' } },
+  );
+  assert.equal(privateDeliverySuggestionFromConversationKey('onebot', 'group:904897306'), null);
   assert.equal(privateConversationKeyMatchesTarget('telegram', 'group:-100:42', TOPIC_TARGET), false);
   assert.equal(resolvePrivateConversationKey('telegram', {
     'group:-100:42': 'session-topic',

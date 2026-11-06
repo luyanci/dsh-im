@@ -7,6 +7,7 @@ const CHANNELS = new Set([
   'wecom',
   'wecom-app',
   'qq',
+  'onebot',
   'slack',
   'telegram',
   'discord',
@@ -120,6 +121,11 @@ export function deliverySuggestionFromConversationKey(channel, key) {
         ['c2c', 'user', 'userOpenId'],
         ['group', 'group', 'groupOpenId'],
       ]);
+    case 'onebot':
+      return simpleSuggestion(key, [
+        ['direct', 'user', 'userId'],
+        ['group', 'group', 'groupId'],
+      ]);
     case 'slack':
       return slackSuggestion(key);
     case 'telegram':
@@ -156,6 +162,7 @@ export function privateDeliverySuggestionFromConversationKey(channel, key) {
     wecom: 'direct',
     'wecom-app': 'p2p',
     qq: 'c2c',
+    onebot: 'direct',
     slack: 'direct',
     telegram: 'direct',
     discord: 'direct',

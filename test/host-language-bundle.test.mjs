@@ -11,7 +11,7 @@ async function startHost(t, language) {
   const dshHome = await mkdtemp(join(tmpdir(), 'dsh-im-bundled-language-'));
   t.after(() => rm(dshHome, { recursive: true, force: true }));
   const channels = [
-    'Feishu', 'Weixin', 'Dingtalk', 'Wecom', 'WecomApp', 'Qq', 'Slack',
+    'Feishu', 'Weixin', 'Dingtalk', 'Wecom', 'WecomApp', 'Qq', 'OneBot', 'Slack',
     'Telegram', 'Discord', 'Whatsapp', 'IMessage', 'Email', 'Matrix', 'Office',
   ];
   const internals = Object.fromEntries(channels.map((channel) => [

@@ -178,6 +178,35 @@ export function OfficeLogoGlyph({ size } = {}) {
   h('path', { fill: 'currentColor', d: 'M18.3 8.2h1.5v3h3v1.5h-3v3h-1.5v-3h-3v-1.5h3v-3Z' }));
 }
 
+/**
+ * OneBot v11 mark, traced from <https://onebot.dev/logo.png>: a ring with a gap
+ * at the top and at the bottom, and "1|" inside. Stroke-based so the glyph reads
+ * at 24px and follows `currentColor` like every other channel logo.
+ */
+export function OneBotLogoGlyph({ size } = {}) {
+  return h('svg', {
+    ...dimensions(size),
+    viewBox: '0 0 48 48',
+    focusable: 'false',
+    'aria-hidden': 'true',
+    'data-im-channel-logo': 'onebot',
+  },
+  h('path', {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 8,
+    d: 'M25.438 7.563 A16.5 16.5 0 0 1 25.438 40.437 M22.562 40.437 A16.5 16.5 0 0 1 22.562 7.563',
+  }),
+  h('path', {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 3.2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    d: 'M19.6 16.2 V30.8 M17.2 19.0 L19.6 16.3 M26.9 15.2 V28.6 Q26.9 31.0 29.9 29.0',
+  }));
+}
+
 export function EmailLogoGlyph({ size } = {}) {
   return h('svg', {
     ...dimensions(size),

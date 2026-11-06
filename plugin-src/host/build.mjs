@@ -20,6 +20,7 @@ const externalRuntimePackages = [
   'qrcode',
   'sharp',
   'undici',
+  'ws',
 ];
 const external = externalRuntimePackages.flatMap((name) => [name, `${name}/*`]);
 

@@ -15,8 +15,8 @@ const channels = await Promise.all([
   ['feishu', 'PluginConfigStore', 'plugin-config-store'],
   ['weixin', 'WeixinConfigStore'], ['dingtalk', 'DingtalkConfigStore'],
   ['wecom', 'WecomConfigStore'], ['wecom-app', 'WecomAppConfigStore'],
-  ['qq', 'QqConfigStore'], ['slack', 'SlackConfigStore'],
-  ['telegram', 'TelegramConfigStore'], ['discord', 'DiscordConfigStore'],
+  ['qq', 'QqConfigStore'], ['onebot', 'OneBotConfigStore', 'onebot-config-store'],
+  ['slack', 'SlackConfigStore'],  ['telegram', 'TelegramConfigStore'], ['discord', 'DiscordConfigStore'],
   ['whatsapp', 'WhatsappConfigStore'],
   ['matrix', 'MatrixConfigStore', 'matrix-config-store'],
   ['email', 'EmailConfigStore'], ['office', 'OfficeConfigStore'],
@@ -99,7 +99,8 @@ for (const { id, apply, Store, api } of channels) {
       assert.equal((await f.call(id, 'bot.delete', { confirm: true })).error.code, `${id}-initializing`);
       gate.resolve();
       await fiber.await();
-      assert.equal((await f.call(id)).ok, true);
+      const settled = await f.call(id);
+      assert.equal(settled.ok, true, `${id}: ${JSON.stringify(settled)}`);
       assert.equal((await route.handler('connection.status', {}, undefined, lanHeaders)).ok, true);
       assert.equal(f.routes.get(`/${id}`), route);
       // The original handler still validates payloads; do not coerce null to {}.
@@ -119,7 +120,10 @@ for (const { id, apply, Store, api } of channels) {
   for (const [label, filename, contents] of [
     ['malformed JSON', 'configPath', '{private-secret-value'],
     ['invalid configuration data', 'configPath', '{"invalid":"private-secret-value"}'],
-    ...(id === 'office' ? [] : [['invalid workspace data', 'workspacesPath', '{"version":999,"private":"private-secret-value"}']]),
+    // AI Office and OneBot keep no per-bot workspace document: the first has its
+    // own layout, the second always uses the shared default workspace, so a broken
+    // workspaces.json is not part of their startup.
+    ...(['office', 'onebot'].includes(id) ? [] : [['invalid workspace data', 'workspacesPath', '{"version":999,"private":"private-secret-value"}']]),
   ]) {
     test(`${id} preserves ${label} and exposes safe guidance in its settings client`, async t => {
       const f = await fixture(t);
