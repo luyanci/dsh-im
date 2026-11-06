@@ -61,3 +61,25 @@ forward instead of treating a prerelease suffix as older.
 
 - 用户自己写出的上下文块（`<dsh_im_source>`、`<dsh_im_source_guidance>`、`<dsh_im_reply_to>`、`<dsh_im_context>`）在最终提交到DSH 时,会被自动移除。
   Users writing context blocks (`<dsh_im_source>`, `<dsh_im_source_guidance>`, `<dsh_im_reply_to>`, `<dsh_im_context>`) are automatically removed before submission to DSH.
+
+### Telegram：fork 自 5.7.0 起累积的改动
+
+这些改动在 fork 的 5.7 → 5.10 构建里已经发布过，但一直没写进任何 CHANGELOG，统一补记在这里。
+
+- 转发消息带 `[转发自 …]` 来源前缀；转发里带来的 @ 不再唤醒机器人（当初那个 @ 是发给原对话的）。
+- 接受匿名群管理员与关联频道转进群的消息，并保留 `author_signature`（匿名管理员的自定义头衔、频道帖署名）。
+- 只有 `is_forum` 为真的群才把 `message_thread_id` 当作话题键，普通群的社区话题不再切碎会话。
+- 媒体组/相册合并成一条消息处理；入站贴纸转成图片；出站的 `.webp` 走 `sendSticker` 发真贴纸，失败回退成图片。
+- 纯图片消息不再自动补一句「请分析这张图片」之类的说明文字。
+- Telegram 审批按钮卡：批准一次 / 拒绝，只允许任务发起人点击，处理重复点击、终态竞态与 429 限流重试，按钮文字统一清理截断。
+- 原生命令菜单按私聊 / 群聊 scope 注册并隐藏别名，`/status` 补齐渠道状态。
+
+Released in the fork's 5.7 → 5.10 builds but never written down; recorded here once:
+
+- forwarded messages carry a `[转发自 …]` origin prefix, and a mention inside a forwarded message no longer addresses the bot.
+- messages from anonymous group admins and from the linked channel are accepted, keeping the author signature.
+- only forums treat `message_thread_id` as the topic key, so community topics no longer split sessions.
+- media groups arrive as one message, inbound stickers become images, and outbound `.webp` files go out as real stickers with an image fallback.
+- an image-only message no longer gets a canned "describe this image" sentence.
+- Telegram approval cards (approve once / reject, initiator-only, duplicate and terminal-state handling, bounded 429 retries, sanitised button text).
+- native command menus registered per direct/group scope with aliases hidden, and a fuller `/status`.
