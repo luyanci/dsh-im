@@ -46,12 +46,10 @@ forward instead of treating a prerelease suffix as older.
 - Telegram 引用图片、文件、贴纸、语音或视频时，引用块现在带着被引用媒体的惰性下载源（`files`），
   入站文件管线按需取回并落盘；此前引用只带一个附件名，所以「这张图里是什么？」永远答不上来。
   引用贴纸取原始 webp、动画/视频贴纸取首帧缩略图；文件大小上限沿用入站文件管线的 `maxBytes`。
-  被引用文件超过 **4 MiB** 时只保留附件名、不预先下载：引用媒体是在回合开始前取回的，大文件会拖慢回答。
   Quoted photos, documents, stickers, voice notes and videos on Telegram now carry a lazy `files` source, so the
   inbound-file pipeline can fetch the quoted bytes on demand. Before this, a quote only held an attachment name and
   "what is in this picture?" could not be answered. Stickers quote their webp (or the thumbnail for animated/video
-  stickers), and the inbound `maxBytes` limit still applies. A quoted file above **4 MiB** keeps only its name: the
-  bytes are fetched before the turn starts, so a heavy quote would delay the answer.
+  stickers), and the inbound `maxBytes` limit still applies.
 
 ## [5.11.2] - 2026-11-06
 
