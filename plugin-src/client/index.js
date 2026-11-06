@@ -354,7 +354,7 @@ export function IMSettingsTab({
       h('span', { className: 'dim-githubAction' },
         h('a', {
           className: 'dim-githubLink',
-          href: 'https://github.com/xmanrui/dsh-im',
+          href: 'https://github.com/luyanci/dsh-im',
           target: '_blank',
           rel: 'noopener noreferrer',
           'aria-label': 'dsh-im GitHub',

@@ -120,7 +120,7 @@ test('web keeps its one bilingual settings entry, including hosts without provid
     const host = start(t, { provide });
     assert.equal(host.entries.size, 1);
     const { options, component } = [...host.entries][0];
-    assert.equal(options.id, 'xmanrui-dsh-im');
+    assert.equal(options.id, 'luyanci-dsh-im');
     assert.equal(options.order, 21);
     assert.equal(options.label(), 'IM机器人');
     assert.equal(options.locale, 'dsh-im');

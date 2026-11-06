@@ -15,7 +15,7 @@ test('the published client registers the complete Russian pack and renders each 
   const require = createRequire(import.meta.url);
   runInNewContext(await readFile(new URL('../lib/client.js', import.meta.url), 'utf8'), {
     window: { __ModuleLoader__: { load({ id, factory }) {
-      assert.equal(id, '@xmanrui/dsh-im');
+      assert.equal(id, '@luyanci/dsh-im');
       client = factory(require);
     } } },
     AbortController, setTimeout, clearTimeout, console,

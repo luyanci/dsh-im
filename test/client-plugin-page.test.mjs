@@ -8,7 +8,7 @@ import { IM_MAIN_PANEL_ID, installImPluginPage } from '../plugin-src/client/plug
 import { apply as applyClient } from '../plugin-src/client/index.js';
 
 const { act, create } = TestRenderer;
-const packageName = '@xmanrui/dsh-im';
+const packageName = '@luyanci/dsh-im';
 const bundle = { kind: 'bundle', pkg: { name: packageName } };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 

@@ -9,6 +9,9 @@ import semver from 'semver';
 import { PACKAGE_NAME } from '../shared/identity.js';
 
 export { PACKAGE_NAME };
+
+/** npm scope of PACKAGE_NAME, e.g. `@luyanci` in `@luyanci/dsh-im`. */
+export const PACKAGE_SCOPE = PACKAGE_NAME.slice(0, PACKAGE_NAME.indexOf('/'));
 export const NPM_REGISTRY = 'https://registry.npmjs.org/';
 
 const INSTALL_TIMEOUT_MS = 15 * 60_000;
@@ -256,7 +259,7 @@ export function createUpdateRuntime(options = {}) {
   }
 
   async function checkRegistry(runtime, signal) {
-    const args = ['config', 'get', '@xmanrui:registry', '--json'];
+    const args = ['config', 'get', `${PACKAGE_SCOPE}:registry`, '--json'];
     const result = await run(
       (childSignal) => runtime.desktop
         ? runtime.desktop.run(args, childSignal)
