@@ -71,8 +71,6 @@ forward instead of treating a prerelease suffix as older.
 - 只有 `is_forum` 为真的群才把 `message_thread_id` 当作话题键，普通群的社区话题不再切碎会话。
 - 媒体组/相册合并成一条消息处理；入站贴纸转成图片；出站的 `.webp` 走 `sendSticker` 发真贴纸，失败回退成图片。
 - 纯图片消息不再自动补一句「请分析这张图片」之类的说明文字。
-- Telegram 审批按钮卡：批准一次 / 拒绝，只允许任务发起人点击，处理重复点击、终态竞态与 429 限流重试，按钮文字统一清理截断。
-- 原生命令菜单按私聊 / 群聊 scope 注册并隐藏别名，`/status` 补齐渠道状态。
 
 Released in the fork's 5.7 → 5.10 builds but never written down; recorded here once:
 
@@ -81,5 +79,3 @@ Released in the fork's 5.7 → 5.10 builds but never written down; recorded here
 - only forums treat `message_thread_id` as the topic key, so community topics no longer split sessions.
 - media groups arrive as one message, inbound stickers become images, and outbound `.webp` files go out as real stickers with an image fallback.
 - an image-only message no longer gets a canned "describe this image" sentence.
-- Telegram approval cards (approve once / reject, initiator-only, duplicate and terminal-state handling, bounded 429 retries, sanitised button text).
-- native command menus registered per direct/group scope with aliases hidden, and a fuller `/status`.
