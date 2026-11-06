@@ -122,18 +122,20 @@ if (forbiddenDshLockPaths.length > 0) {
   );
 }
 
-if (!/\bid\s*:\s*["']@xmanrui\/dsh-im["']/u.test(client)) {
-  throw new Error('client bundle does not register the dsh-im loader id');
+const escapedLoaderId = manifest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const expectedLoaderId = new RegExp(`\\bid\\s*:\\s*["']${escapedLoaderId}["']`, 'u');
+if (!expectedLoaderId.test(client)) {
+  throw new Error(`client bundle does not register the loader id "${manifest.name}"`);
 }
 const sourceSectionMarkers = [
   /ctx\.slots\.inject\(\s*["']settings\.section["']/u,
   /name\s*:\s*["']settings\.section["']/u,
-  /id\s*:\s*["']xmanrui-dsh-im["']/u,
+  /id\s*:\s*["']luyanci-dsh-im["']/u,
   /order\s*:\s*21\b/u,
   /label\s*:\s*\(\)\s*=>\s*t\(\s*["']IM机器人["']\s*\)/u,
   /locale\s*:\s*IM_LOCALE_NAMESPACE\b/u,
 ];
-const bundleSectionPattern = /name\s*:\s*["']settings\.section["']\s*,\s*id\s*:\s*["']xmanrui-dsh-im["']\s*,\s*order\s*:\s*21\s*,\s*label\s*:\s*\(\)\s*=>\s*[$A-Z_a-z][$\w]*\(\s*["']IM(?:机器人|\\u673A\\u5668\\u4EBA)["']\s*\)\s*,\s*locale\s*:\s*(?:[$A-Z_a-z][$\w]*|["']dsh-im["'])/u;
+const bundleSectionPattern = /name\s*:\s*["']settings\.section["']\s*,\s*id\s*:\s*["']luyanci-dsh-im["']\s*,\s*order\s*:\s*21\s*,\s*label\s*:\s*\(\)\s*=>\s*[$A-Z_a-z][$\w]*\(\s*["']IM(?:机器人|\\u673A\\u5668\\u4EBA)["']\s*\)\s*,\s*locale\s*:\s*(?:[$A-Z_a-z][$\w]*|["']dsh-im["'])/u;
 if (sourceSectionMarkers.some((pattern) => !pattern.test(clientEntrySource))
   || !/IM_LOCALE_NAMESPACE\s*=\s*["']dsh-im["']/u.test(clientSources)
   || !bundleSectionPattern.test(client)) {
@@ -240,8 +242,14 @@ if (/@xmanrui\/dsh-(?:feishu|weixin|dingtalk)/.test(
 )) {
   throw new Error('source or package metadata still depends on an external channel plugin');
 }
-if (!patch.includes("name: '@xmanrui/dsh-im'") || /dsh-(?:feishu|weixin|dingtalk)/.test(patch)) {
+if (!patch.includes(`name: '${manifest.name}'`) || /dsh-(?:feishu|weixin|dingtalk)/.test(patch)) {
   throw new Error('bundle patch must activate only dsh-im');
+}
+const identity = await import(pathToFileURL(resolve(root, 'plugin-src/shared/identity.js')).href);
+if (identity.PACKAGE_NAME !== manifest.name) {
+  throw new Error(
+    `plugin-src/shared/identity.js names "${identity.PACKAGE_NAME}" but package.json is "${manifest.name}"`,
+  );
 }
 for (const name of ['@xmanrui/dsh-feishu', '@xmanrui/dsh-weixin', '@xmanrui/dsh-dingtalk']) {
   if (manifest.dependencies?.[name]) {

@@ -11,7 +11,7 @@ export function installDiscordStyles() {
   const existing = document.querySelector(`style[data-plugin-css="${DISCORD_STYLE_ID}"]`);
   if (existing) return () => {};
   const style = document.createElement('style');
-  style.dataset.plugin = '@xmanrui/dsh-im';
+  style.dataset.plugin = '@luyanci/dsh-im';
   style.dataset.pluginCss = DISCORD_STYLE_ID;
   style.textContent = CSS;
   document.head.appendChild(style);

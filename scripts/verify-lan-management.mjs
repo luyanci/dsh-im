@@ -13,6 +13,7 @@ if (!harnessRoot || process.argv.includes('--help')) {
   process.exit(harnessRoot ? 0 : 1);
 }
 const pluginRoot = resolve(import.meta.dirname, '..');
+const packageName = JSON.parse(await readFile(join(pluginRoot, 'package.json'), 'utf8')).name;
 const cli = resolve(harnessRoot, 'apps/cli/lib/bin.js');
 await access(cli);
 await access(join(pluginRoot, 'lib/index.js'));
@@ -178,7 +179,7 @@ try {
   const packages = {
     '@deepseek-ai/dsh-base': resolve(harnessRoot, 'packages/bundle/base'),
     '@deepseek-ai/dsh-web-app': resolve(harnessRoot, 'packages/bundle/web-app'),
-    '@xmanrui/dsh-im': pluginRoot,
+    [packageName]: pluginRoot,
   };
   for (const [name, path] of Object.entries(packages)) {
     const target = join(profile, 'node_modules', name);

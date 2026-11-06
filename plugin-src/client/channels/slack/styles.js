@@ -26,7 +26,7 @@ export function installSlackStyles() {
   const existing = document.querySelector(`style[data-plugin-css="${SLACK_STYLE_ID}"]`);
   if (existing) return () => {};
   const style = document.createElement('style');
-  style.dataset.plugin = '@xmanrui/dsh-im';
+  style.dataset.plugin = '@luyanci/dsh-im';
   style.dataset.pluginCss = SLACK_STYLE_ID;
   style.textContent = CSS;
   document.head.appendChild(style);

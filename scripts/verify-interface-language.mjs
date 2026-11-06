@@ -53,6 +53,7 @@ if (!harnessRoot) {
   process.exit(1);
 }
 const pluginRoot = resolve(import.meta.dirname, '..');
+const packageName = JSON.parse(await readFile(join(pluginRoot, 'package.json'), 'utf8')).name;
 await access(join(pluginRoot, 'lib/index.js'));
 
 /**
@@ -225,7 +226,7 @@ try {
   const packages = {
     '@deepseek-ai/dsh-base': harness.base,
     '@deepseek-ai/dsh-web-app': harness.webApp,
-    '@xmanrui/dsh-im': pluginRoot,
+    [packageName]: pluginRoot,
   };
   for (const [name, path] of Object.entries(packages)) {
     const target = join(profile, 'node_modules', name);

@@ -6,6 +6,7 @@ import semver from 'semver';
 
 import manifest from '../../package.json' with { type: 'json' };
 import { withSessionBindingLock } from '../../src/channels/shared/session-binding-lock.mjs';
+import { tarballPath } from '../shared/identity.js';
 import { NPM_REGISTRY, PACKAGE_NAME } from './update-runtime.mjs';
 
 const ACTIVE_STATES = new Set(['installing', 'verifying']);
@@ -54,7 +55,7 @@ export async function fetchNpmRelease(fetchImpl = globalThis.fetch, timeoutMs = 
     const integrity = value.dist?.integrity;
     if (tarball.origin !== new URL(NPM_REGISTRY).origin || tarball.username || tarball.password
       || tarball.search || tarball.hash
-      || tarball.pathname !== `/@xmanrui/dsh-im/-/dsh-im-${version}.tgz`
+      || tarball.pathname !== tarballPath(version)
       || typeof integrity !== 'string' || !/^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity)) {
       throw updateError('invalid-release');
     }

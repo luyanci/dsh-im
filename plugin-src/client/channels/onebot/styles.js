@@ -45,7 +45,7 @@ export function installOneBotStyles() {
   const existing = document.querySelector(`style[data-plugin-css="${ONEBOT_STYLE_ID}"]`);
   if (existing) return () => {};
   const style = document.createElement('style');
-  style.dataset.plugin = '@xmanrui/dsh-im';
+  style.dataset.plugin = '@luyanci/dsh-im';
   style.dataset.pluginCss = ONEBOT_STYLE_ID;
   style.textContent = CSS;
   document.head.appendChild(style);

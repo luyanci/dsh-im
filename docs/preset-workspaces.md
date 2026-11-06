@@ -7,7 +7,7 @@
 ```yaml
 - insert:
     - id: xmanrui-dsh-im
-      name: '@xmanrui/dsh-im'
+      name: '@luyanci/dsh-im'
       config:
         groupByAgentPreset: true
         feishu:

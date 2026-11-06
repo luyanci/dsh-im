@@ -13,7 +13,7 @@ export function installIMessageStyles() {
   if (typeof document === 'undefined') return () => {};
   const existing = document.querySelector(`style[data-plugin-css="${IMESSAGE_STYLE_ID}"]`);
   if (existing) return () => {};
-  const style = document.createElement('style'); style.dataset.plugin = '@xmanrui/dsh-im';
+  const style = document.createElement('style'); style.dataset.plugin = '@luyanci/dsh-im';
   style.dataset.pluginCss = IMESSAGE_STYLE_ID; style.textContent = CSS; document.head.appendChild(style);
   return () => style.remove();
 }

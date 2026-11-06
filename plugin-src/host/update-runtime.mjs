@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 import semver from 'semver';
 
-export const PACKAGE_NAME = '@xmanrui/dsh-im';
+import { PACKAGE_NAME } from '../shared/identity.js';
+
+export { PACKAGE_NAME };
 export const NPM_REGISTRY = 'https://registry.npmjs.org/';
 
 const INSTALL_TIMEOUT_MS = 15 * 60_000;

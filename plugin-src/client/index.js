@@ -663,7 +663,7 @@ export function apply(ctx) {
       stopSettings = ctx.slots.inject('settings.section', () => {
         const unregister = ctx.slots.register({
           name: 'settings.section',
-          id: 'xmanrui-dsh-im',
+          id: 'luyanci-dsh-im',
           order: 21,
           label: () => t('IM机器人'),
           locale: IM_LOCALE_NAMESPACE,
