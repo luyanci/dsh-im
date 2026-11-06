@@ -1332,6 +1332,30 @@ test('a quoted photo downloads through the injected loader only when asked', asy
   assert.deepEqual(requests, [{ fileId: 'photo-large', hasSignal: false, maxBytes: 1024 }]);
 });
 
+test('a heavy quoted file keeps its name but is not downloaded before the turn', () => {
+  const quoted = normalizeTelegramUpdate({
+    update_id: 20,
+    message: {
+      message_id: 21,
+      chat: { id: 88, type: 'private' },
+      from: { id: 42, is_bot: false },
+      text: '总结这个视频',
+      reply_to_message: {
+        message_id: 20,
+        from: { id: 41, username: 'alice' },
+        video: { file_id: 'big-video', file_unique_id: 'big-video', file_size: 40 * 1024 * 1024 },
+      },
+    },
+  }, {
+    botId: '123456789',
+    username: 'HarnessBot',
+    loadFile: async () => Buffer.from([1]),
+  });
+
+  assert.deepEqual(quoted.replyTo.attachments, [{ kind: 'video' }]);
+  assert.equal(quoted.replyTo.files, undefined, 'a huge quote must not delay the answer');
+});
+
 test('Telegram uses TextQuote and bounded history loading when reply_to_message omits text', async () => {
   let loads = 0;
   const quoted = normalizeTelegramUpdate({

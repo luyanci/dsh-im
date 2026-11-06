@@ -384,16 +384,25 @@ function quotedFileName(file, fallbackExtension) {
   return `${unique}.${fallbackExtension}`;
 }
 
+/**
+ * A quoted file is downloaded before the turn starts, so a heavy quote delays the
+ * answer. Photos and stickers are small; a video or a multi-megabyte document is
+ * left as a name-only attachment instead of holding the turn hostage.
+ */
+const QUOTED_FILE_MAX_BYTES = 4 * 1024 * 1024;
+
 function quotedFileSource(file, { fallbackExtension, fallbackMediaType, loadFile }) {
   if (!file || typeof file.file_id !== 'string' || !file.file_id) return null;
   if (typeof loadFile !== 'function') return null;
+  const size = fileSize(file.file_size);
+  if (Number.isFinite(size) && size > QUOTED_FILE_MAX_BYTES) return null;
   const name = quotedFileName(file, fallbackExtension);
   const declared = typeof file.mime_type === 'string' && file.mime_type
     ? file.mime_type.toLowerCase() : undefined;
   return {
     name,
     mediaType: declared ?? quotedMediaType(name, fallbackMediaType),
-    size: fileSize(file.file_size),
+    size,
     load: ({ signal, maxBytes } = {}) => loadFile(file.file_id, { signal, maxBytes }),
   };
 }
