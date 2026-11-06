@@ -32,6 +32,8 @@ import {
   TelegramRuntime,
   TELEGRAM_COMMAND_MENU,
   normalizeTelegramUpdate,
+  recallAnswerText,
+  rememberAnswerText,
   telegramCommandMenu,
   telegramCommandMenuScopes,
   telegramInboundAllowed,
@@ -1330,6 +1332,16 @@ test('a quoted photo downloads through the injected loader only when asked', asy
   const bytes = await quoted.replyTo.files[0].load({ maxBytes: 1024 });
   assert.deepEqual([...bytes], [9, 9, 9]);
   assert.deepEqual(requests, [{ fileId: 'photo-large', hasSignal: false, maxBytes: 1024 }]);
+});
+
+test('an answer the bot sent is recalled for a quote instead of paging the transcript', () => {
+  // Telegram omits the text of older quoted messages; recovering it from the
+  // session transcript cost seconds, so a message the bot sent itself is cached.
+  rememberAnswerText(['501', '502'], '这是刚才的答案');
+  assert.equal(recallAnswerText('501'), '这是刚才的答案');
+  assert.equal(recallAnswerText(502), '这是刚才的答案');
+  assert.equal(recallAnswerText('999'), undefined);
+  assert.equal(recallAnswerText(undefined), undefined);
 });
 
 test('a heavy quoted file keeps its name but is not downloaded before the turn', () => {

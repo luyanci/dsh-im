@@ -52,6 +52,11 @@ forward instead of treating a prerelease suffix as older.
   "what is in this picture?" could not be answered. Stickers quote their webp (or the thumbnail for animated/video
   stickers), and the inbound `maxBytes` limit still applies. A quoted file above **4 MiB** keeps only its name: the
   bytes are fetched before the turn starts, so a heavy quote would delay the answer.
+- Telegram 引用一条机器人自己发过的消息时，直接从那 64 条「最近发出的答案」缓存里取原文，不再去翻会话历史；
+  真的需要回查历史时超时从 5 秒降到 2 秒，捞不到就标 `not-delivered`，不让读者干等。
+  Quoting a message the bot sent resolves from a 64-entry cache of recently sent answers instead of paging the
+  session transcript; when the transcript really is needed the timeout drops from five seconds to two, and an
+  unrecoverable quote reports `not-delivered` instead of stalling the answer.
 
 ## [5.11.2] - 2026-11-06
 

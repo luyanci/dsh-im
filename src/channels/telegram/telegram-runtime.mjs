@@ -1033,6 +1033,51 @@ function isMessageNotModified(error) {
   return /message is not modified/iu.test(error?.message ?? '');
 }
 
+/** How many recently sent answers stay available for quoting back. */
+const ANSWER_TEXT_CACHE_LIMIT = 64;
+
+/**
+ * Recovering a quoted message from the session transcript is a last resort: it
+ * pages through history and used to be allowed five seconds, which the reader
+ * experiences as the bot thinking. Two seconds is enough to find a message that
+ * is still in the transcript and keeps a bad quote from stalling the answer.
+ */
+const QUOTED_RECOVERY_TIMEOUT_MS = 2_000;
+
+/**
+ * The answers this process sent, keyed by Telegram message id and shared between
+ * the delivery stream (which writes) and the runtime (which reads when a quote
+ * needs the original text).
+ */
+const recentAnswerTexts = new Map();
+
+function rememberAnswerText(providerMessageIds, text) {
+  const value = typeof text === 'string' ? text : '';
+  if (!value.trim() || !Array.isArray(providerMessageIds)) return;
+  for (const id of providerMessageIds) {
+    if (!id) continue;
+    const key = String(id);
+    recentAnswerTexts.delete(key);
+    recentAnswerTexts.set(key, value);
+  }
+  while (recentAnswerTexts.size > ANSWER_TEXT_CACHE_LIMIT) {
+    const oldest = recentAnswerTexts.keys().next().value;
+    if (oldest === undefined) break;
+    recentAnswerTexts.delete(oldest);
+  }
+}
+
+function recallAnswerText(messageId) {
+  if (messageId === undefined || messageId === null) return undefined;
+  return recentAnswerTexts.get(String(messageId));
+}
+
+/**
+ * Exported for the regression test only: a quoted message the bot sent itself must
+ * resolve from this cache instead of paging through the session transcript.
+ */
+export { QUOTED_RECOVERY_TIMEOUT_MS, recallAnswerText, rememberAnswerText };
+
 export class TelegramBotClient {
   #api;
   #signal;
@@ -1317,6 +1362,12 @@ export class TelegramBotClient {
    * notifies the client that the turn is over.
    */
   async #finishDeliveryStream(target, messageId, block) {
+    const result = await this.#deliverAnswer(target, messageId, block);
+    rememberAnswerText(result?.providerMessageIds, block.text);
+    return result;
+  }
+
+  async #deliverAnswer(target, messageId, block) {
     if (!this.#editFinalAnswer) {
       await this.#deletePlaceholder(target, messageId);
       return this.#sendRich(target, block);
@@ -2256,6 +2307,8 @@ export class TelegramRuntime {
   }
 
   async #loadReplyContent(reference, { signal } = {}) {
+    const cached = recallAnswerText(reference?.messageId);
+    if (typeof cached === 'string' && cached.trim()) return { content: cached };
     const key = typeof reference?.conversationKey === 'string'
       ? reference.conversationKey.trim() : '';
     const quotedAt = Number(reference?.createdAt);
@@ -2266,7 +2319,9 @@ export class TelegramRuntime {
     const session = typeof sessionId === 'string' && sessionId
       ? this.#harness.workspaceSession?.(sessionId, key)
       : null;
-    const text = await recoverAssistantTextByTimestamp({ session, quotedAt, signal });
+    const text = await recoverAssistantTextByTimestamp({
+      session, quotedAt, signal, timeoutMs: QUOTED_RECOVERY_TIMEOUT_MS,
+    });
     return text ? { content: text } : { unavailableReason: 'not-delivered' };
   }
 
