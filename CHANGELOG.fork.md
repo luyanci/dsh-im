@@ -27,19 +27,17 @@ forward instead of treating a prerelease suffix as older.
   Quoted images and files on the OneBot channel are now actually fetched: `get_msg` carries the bytes behind a
   signed `data.url`, and the quote used to expose only the bare resource name. The reference now offers a lazy file
   source that the existing inbound-file pipeline downloads and stages, so quoted media is readable; a message with
-  no `url` keeps just the attachment name.
-
-
+  no `url` keeps just the attachment name.（`9bc89f24`）
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
-  现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。
+  现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。（`81174877`）
   Telegram rich messages escaped `&`, `<` and `>` into HTML entities, but Telegram's rich renderer does not decode
   them: prose showed `&lt;b&gt;` and code blocks arrived as `&lt;!DOCTYPE html&gt;`, useless to copy. The markdown is
-  now sent unchanged with no entity escaping at all.
+  now sent unchanged with no entity escaping at all. (`81174877`)
 - 会话同步的最终答案在发送前会剔除宿主框架前缀（`Current runtime context.`、`[Compressed conversation section]`、
   `<system-reminder>`、`[SCHEDULE REMINDER`）。起因是上游 issue 报告：一个服务提示触发的回合模型没产出正文，
   聊天里却收到了注入的 runtime context 原文。该成因尚未复现确认，这道闸只做兜底——命中时跳过投递并记
-  `host-framing-leak`，日志里不带正文；正文中提到这些字样的正常回答不受影响。
+  `host-framing-leak`，日志里不带正文；正文中提到这些字样的正常回答不受影响。（`edd54690`）
   Session sync now refuses to deliver text that starts with Host-injected framing (`Current runtime context.`,
   `[Compressed conversation section]`, `<system-reminder>`, `[SCHEDULE REMINDER`). An upstream issue reported a
   service turn whose model answered nothing yet the chat received the injected runtime context verbatim; the
