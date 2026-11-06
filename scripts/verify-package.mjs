@@ -25,7 +25,6 @@ const required = [
   'cordis.patch.yml',
   'scripts/verify-injected-context.mjs',
   'README.md',
-  'README.en.md',
   'PROACTIVE_DELIVERY.md',
   'PROACTIVE_DELIVERY.en.md',
   'THIRD_PARTY_NOTICES.md',

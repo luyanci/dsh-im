@@ -26,25 +26,19 @@
     "matrix",
     "ai-office"
   ],
-  "authors": {
-    "xmanrui": {
-      "name": "xmanrui",
-      "url": "https://github.com/xmanrui"
-    },
-    "luyanci": {
-      "name": "luyanci",
-      "url": "https://github.com/luyanci"
-    }
-  },
+  "author": "luyanci (https://github.com/luyanci)",
+  "contributors": [
+    "xmanrui (https://github.com/xmanrui)"
+  ],
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xmanrui/dsh-im.git"
+    "url": "git+https://github.com/luyanci/dsh-im.git"
   },
-  "homepage": "https://github.com/xmanrui/dsh-im#readme",
+  "homepage": "https://github.com/luyanci/dsh-im#readme",
   "bugs": {
-    "url": "https://github.com/xmanrui/dsh-im/issues"
+    "url": "https://github.com/luyanci/dsh-im/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -81,7 +75,6 @@
     "docs/preset-workspaces.md",
     "LICENSE",
     "README.md",
-    "README.en.md",
     "THIRD_PARTY_NOTICES.md"
   ],
   "dsh": {
