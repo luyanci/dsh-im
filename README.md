@@ -62,6 +62,8 @@ npm install @luyanci/dsh-im
 - **新增 OneBot v11 渠道**（第 10 个渠道）：反向 WebSocket、引用解析、图片/文件收发、静默回合、每账号设置、投递目标、接入引导；
 - 上游功能保持跟随，合并时保留自己的渠道与文档。
 
+本 fork 自己的发布记录在 [`CHANGELOG.fork.md`](CHANGELOG.fork.md)；上游历史原样保留在 [`CHANGELOG.md`](CHANGELOG.md)，那份文件我们不改，合并上游标签时不会冲突。版本号始终领先上游：上游发新标签时，fork 直接跳到更高的 minor。
+
 ## 文档
 
 - `docs/onebot-channel.md` — OneBot 渠道设计稿与实测结论

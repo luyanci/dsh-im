@@ -55,6 +55,7 @@
   },
   "files": [
     "assets",
+    "CHANGELOG.fork.md",
     "bin",
     "cordis.patch.yml",
     "lib",
