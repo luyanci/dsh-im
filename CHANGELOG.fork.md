@@ -21,6 +21,15 @@ forward instead of treating a prerelease suffix as older.
 
 ### Fixed / 修复
 
+- OneBot 渠道引用图片/文件时，被引用的媒体现在会真正取回来：`get_msg` 的 `data.url` 是签名下载链接，
+  之前只把裸资源名写进引用块，模型拿到的是一句「只有个文件名」。现在引用块带一个惰性文件源，走既有的入站文件
+  管线下载并落盘，图片/文件因此可读；没有 `url` 的旧消息仍只保留附件名。
+  Quoted images and files on the OneBot channel are now actually fetched: `get_msg` carries the bytes behind a
+  signed `data.url`, and the quote used to expose only the bare resource name. The reference now offers a lazy file
+  source that the existing inbound-file pipeline downloads and stages, so quoted media is readable; a message with
+  no `url` keeps just the attachment name.
+
+
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
   现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。

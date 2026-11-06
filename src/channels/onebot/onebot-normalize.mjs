@@ -124,18 +124,68 @@ function renderSegment(segment, { selfId }) {
   }
 }
 
+const QUOTED_MEDIA_TYPES = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  mp4: 'video/mp4',
+  amr: 'audio/amr',
+  silk: 'audio/silk',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+};
+
+function quotedMediaType(name, fallback) {
+  const extension = String(name).toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  return QUOTED_MEDIA_TYPES[extension] ?? fallback;
+}
+
+/**
+ * A quoted image or file keeps its bytes behind `data.url`, a signed download
+ * link. Returning a lazy source lets the normal inbound-file pipeline fetch and
+ * stage it, so a quote of a photo reaches the model as a real attachment instead
+ * of a bare filename.
+ */
+function quotedFileSource(name, data, fetchImpl, fallbackMediaType) {
+  const url = typeof data.url === 'string' ? data.url.trim() : '';
+  if (!url) return null;
+  return {
+    name,
+    mediaType: quotedMediaType(name, fallbackMediaType),
+    async load({ signal, maxBytes } = {}) {
+      const response = await fetchImpl(url, { signal });
+      if (!response.ok) {
+        throw new Error(`quoted media download failed (HTTP ${response.status})`);
+      }
+      const length = Number(response.headers?.get?.('content-length'));
+      if (Number.isFinite(length) && Number.isInteger(maxBytes) && maxBytes > 0 && length > maxBytes) {
+        throw new Error(`quoted media is larger than ${maxBytes} bytes`);
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (Number.isInteger(maxBytes) && maxBytes > 0 && bytes.length > maxBytes) {
+        throw new Error(`quoted media is larger than ${maxBytes} bytes`);
+      }
+      return bytes;
+    },
+  };
+}
+
 /**
  * Turn a `get_msg` result into the quoted reference shape the reply pipeline
  * expects. Returning `null` means the message is gone; an object with no text
  * and no attachments still carries the author, so the model at least knows who
  * was quoted.
  */
-export function oneBotQuotedReference(quoted) {
+export function oneBotQuotedReference(quoted, { fetch: fetchImpl = globalThis.fetch } = {}) {
   if (quoted === null || quoted === undefined) return null;
   const sender = quoted.sender ?? {};
   const segments = Array.isArray(quoted.message) ? quoted.message : [];
   let content = '';
   const attachments = [];
+  const files = [];
   for (const segment of segments) {
     const data = segment?.data ?? {};
     switch (segment?.type) {
@@ -150,9 +200,22 @@ export function oneBotQuotedReference(quoted) {
       case 'face':
         content += '[表情]';
         break;
-      case 'image':
-        attachments.push({ kind: 'image', ...(typeof data.file === 'string' ? { name: data.file } : {}) });
+      case 'image': {
+        const name = typeof data.file === 'string' && data.file ? data.file : 'image';
+        attachments.push({ kind: 'image', name });
+        const quotedFile = quotedFileSource(name, data, fetchImpl, 'image/jpeg');
+        if (quotedFile !== null) files.push(quotedFile);
         break;
+      }
+      case 'file': {
+        const name = typeof data.file === 'string' && data.file
+          ? data.file
+          : typeof data.name === 'string' && data.name ? data.name : 'file';
+        attachments.push({ kind: 'file', name });
+        const quotedFile = quotedFileSource(name, data, fetchImpl, 'application/octet-stream');
+        if (quotedFile !== null) files.push(quotedFile);
+        break;
+      }
       case 'mface': {
         const summary = typeof data.summary === 'string' ? data.summary : '';
         content += summary ? `[表情 ${summary}]` : '[表情]';
@@ -175,6 +238,7 @@ export function oneBotQuotedReference(quoted) {
     ...(authorName === undefined ? {} : { authorName }),
     ...(content.trim() ? { content: content.trim() } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(files.length > 0 ? { files } : {}),
     ...(!content.trim() && attachments.length === 0 ? { unavailableReason: 'unsupported' } : {}),
   };
 }

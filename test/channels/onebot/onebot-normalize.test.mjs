@@ -148,6 +148,62 @@ test('a get_msg payload becomes the quoted reference the pipeline renders', () =
   assert.deepEqual(reference.attachments, [{ kind: 'image', name: 'abc.jpg' }]);
 });
 
+test('a quoted image keeps its bytes available through a lazy download', async () => {
+  // QQ puts the resource behind a signed url; quoting it used to reach the model
+  // as a filename with no content, so the image was never readable.
+  const requested = [];
+  const fetchImpl = async (url) => {
+    requested.push(url);
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (name.toLowerCase() === 'content-length' ? '4' : null) },
+      async arrayBuffer() { return Uint8Array.from([1, 2, 3, 4]).buffer; },
+    };
+  };
+  const reference = oneBotQuotedReference({
+    sender: { user_id: '2058282593', card: 'YC酱' },
+    message: [{
+      type: 'image',
+      data: { file: 'AFC96EF12FF01F2423835A919506AE83.jpg', url: 'https://cdn.example/img.jpg' },
+    }],
+  }, { fetch: fetchImpl });
+
+  assert.deepEqual(reference.attachments, [{ kind: 'image', name: 'AFC96EF12FF01F2423835A919506AE83.jpg' }]);
+  assert.equal(reference.files.length, 1);
+  assert.equal(reference.files[0].mediaType, 'image/jpeg');
+  const bytes = await reference.files[0].load({});
+  assert.deepEqual([...bytes], [1, 2, 3, 4]);
+  assert.deepEqual(requested, ['https://cdn.example/img.jpg']);
+});
+
+test('a quoted file segment is exposed as a file attachment with its bytes', async () => {
+  const reference = oneBotQuotedReference({
+    sender: { user_id: '1' },
+    message: [{ type: 'file', data: { file: 'notes.zip', url: 'https://cdn.example/notes.zip' } }],
+  }, {
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async arrayBuffer() { return Uint8Array.from([7]).buffer; },
+    }),
+  });
+
+  assert.deepEqual(reference.attachments, [{ kind: 'file', name: 'notes.zip' }]);
+  assert.equal(reference.files[0].mediaType, 'application/octet-stream');
+  assert.deepEqual([...(await reference.files[0].load({}))], [7]);
+});
+
+test('a quoted image without a url stays an attachment with no bytes', () => {
+  const reference = oneBotQuotedReference({
+    sender: { user_id: '1' },
+    message: [{ type: 'image', data: { file: 'abc.jpg' } }],
+  });
+  assert.deepEqual(reference.attachments, [{ kind: 'image', name: 'abc.jpg' }]);
+  assert.equal(reference.files, undefined);
+});
+
 test('a deleted quote is null, an unreadable one is unsupported', () => {
   assert.equal(oneBotQuotedReference(null), null);
   const odd = oneBotQuotedReference({ sender: { user_id: '1' }, message: [] });
