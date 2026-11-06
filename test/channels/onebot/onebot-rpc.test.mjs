@@ -71,6 +71,42 @@ test('set-settings splits the bot id from the patch', async () => {
   assert.deepEqual(controller.calls[0], ['settings', 'onebot_abc', { port: 6811 }]);
 });
 
+test('access-policy.set forwards the policy itself, not the envelope', async () => {
+  // Regression: this row passed the whole { botId, policy } payload as the policy,
+  // so the controller received an object without direct/group and every save
+  // failed with "请同时提交完整的私聊和群聊访问设置。".
+  const controller = fakeController();
+  controller.updateAccessPolicy = async (botId, policy) => {
+    controller.calls.push(['policy', botId, policy]);
+    return { botId, accessPolicy: policy };
+  };
+  const policy = {
+    direct: {
+      mode: 'open',
+      open: { defaultCanExecuteCommands: true, commandPermissionOverrides: [] },
+      allowlist: { users: [] },
+    },
+    group: {
+      mode: 'open',
+      open: { defaultCanExecuteCommands: true, commandPermissionOverrides: [] },
+      allowlist: { users: [] },
+    },
+  };
+
+  const handler = createOneBotRpcHandler(controller);
+  const result = await handler(ONEBOT_ENDPOINTS.setAccessPolicy, { botId: 'onebot_abc', policy });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(controller.calls[0], ['policy', 'onebot_abc', policy]);
+
+  const incomplete = await handler(ONEBOT_ENDPOINTS.setAccessPolicy, {
+    botId: 'onebot_abc',
+    policy: { direct: policy.direct },
+  });
+  assert.equal(incomplete.ok, false);
+  assert.equal(incomplete.error.code, 'bad-request');
+});
+
 test('an unknown endpoint and a controller failure both fail closed', async () => {
   const handler = createOneBotRpcHandler(fakeController());
   const unknown = await handler('onebot.nope', {});
