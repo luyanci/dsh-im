@@ -33,9 +33,37 @@ export async function downloadOneBotMedia(url, {
   if (Number.isFinite(declared) && declared > maxBytes) {
     throw new Error(`OneBot media is ${declared} bytes; the limit is ${maxBytes}`);
   }
-  const data = Buffer.from(await response.arrayBuffer());
-  if (data.length > maxBytes) {
-    throw new Error(`OneBot media is ${data.length} bytes; the limit is ${maxBytes}`);
+  // Content-Length can be missing or wrong (chunked transfer), so the cap has to
+  // be enforced while reading: buffering first would let a lying response exhaust
+  // memory before the check runs.
+  const body = response.body;
+  let data;
+  if (body && typeof body.getReader === 'function') {
+    const reader = body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel().catch(() => {});
+          throw new Error(`OneBot media exceeds ${maxBytes} bytes`);
+        }
+        chunks.push(Buffer.from(value));
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      reader.releaseLock?.();
+    }
+    data = Buffer.concat(chunks, total);
+  } else {
+    data = Buffer.from(await response.arrayBuffer());
+    if (data.length > maxBytes) {
+      throw new Error(`OneBot media is ${data.length} bytes; the limit is ${maxBytes}`);
+    }
   }
   const mediaType = response.headers?.get?.('content-type')?.split(';', 1)[0].trim();
   return { data, ...(mediaType ? { mediaType } : {}) };

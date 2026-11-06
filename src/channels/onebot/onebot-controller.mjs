@@ -132,11 +132,19 @@ export class OneBotController {
     if (token !== null && this.#credentials !== null) {
       await this.#credentials.set(identity.accessTokenRef, token);
     }
+    // A blank field means "no token". Leaving the old secret behind would keep
+    // requiring it from the protocol end while the form says otherwise.
+    if (token === null && previous?.accessTokenRef && this.#credentials !== null
+      && typeof this.#credentials.unset === 'function') {
+      await Promise.resolve()
+        .then(() => this.#credentials.unset(previous.accessTokenRef))
+        .catch(() => {});
+    }
     const saved = await this.#configStore.save({
       ...normalizeOneBotSettings(settings),
       selfId: normalizedSelfId,
       name: cleanString(name) ?? undefined,
-      accessTokenRef: previous?.accessTokenRef ?? identity.accessTokenRef,
+      accessTokenRef: token === null ? undefined : previous?.accessTokenRef ?? identity.accessTokenRef,
     });
     await this.#restart(saved.botId);
     return this.status();
@@ -222,7 +230,9 @@ export class OneBotController {
         path: config.path,
         imageSendFormat: config.imageSendFormat,
         selfIds: config.selfIds,
-        accessTokenConfigured: Boolean(config.accessTokenRef),
+        // The ref survives a blank save, so ask the credential store instead of
+        // trusting the string: a cleared token must show as "not configured".
+        accessTokenConfigured: this.#hasStoredToken(config.accessTokenRef),
         ...snapshot,
         ...(this.#errors.has(config.botId) ? { error: this.#errors.get(config.botId) } : {}),
       };
@@ -311,5 +321,14 @@ export class OneBotController {
     if (!config.accessTokenRef || this.#credentials === null) return '';
     const resolved = await this.#credentials.resolve(config.accessTokenRef);
     return typeof resolved?.value === 'string' ? resolved.value : '';
+  }
+
+  /** Best-effort synchronous check: `has()` when the store offers it. */
+  #hasStoredToken(ref) {
+    if (!ref || this.#credentials === null) return false;
+    if (typeof this.#credentials.has === 'function') {
+      try { return this.#credentials.has(ref) === true; } catch { return false; }
+    }
+    return Boolean(ref);
   }
 }

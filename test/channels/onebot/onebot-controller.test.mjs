@@ -15,6 +15,7 @@ function fakeCredentials() {
   return {
     store,
     async set(ref, value) { store.set(ref, value); },
+    has(ref) { return store.has(ref); },
     async resolve(ref) { return store.has(ref) ? { value: store.get(ref) } : undefined; },
     async unset(ref) { store.delete(ref); },
   };
@@ -130,6 +131,16 @@ test('an async runtime factory is awaited before start is called', async (t) => 
   const status = await controller.addBot({ selfId: SELF_ID, port: 6820 });
   assert.equal(status.bots[0].listening, true);
   assert.deepEqual(log, ['start']);
+});
+
+test('saving the account again with a blank token clears the stored secret', async () => {
+  const { controller, configStore, credentials } = await setup();
+  const first = await controller.addBot({ selfId: SELF_ID, accessToken: 'secret' });
+  const botId = first.bots[0].botId;
+  assert.equal(credentials.store.size, 1);
+  const again = await controller.addBot({ selfId: SELF_ID, accessToken: '' });
+  assert.equal(credentials.store.size, 0);
+  assert.equal(again.bots[0].accessTokenConfigured, false);
 });
 
 test('deleting a bot stops it, forgets it and drops its token', async () => {

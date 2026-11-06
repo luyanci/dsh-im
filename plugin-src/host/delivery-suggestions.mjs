@@ -162,6 +162,7 @@ export function privateDeliverySuggestionFromConversationKey(channel, key) {
     wecom: 'direct',
     'wecom-app': 'p2p',
     qq: 'c2c',
+    onebot: 'direct',
     slack: 'direct',
     telegram: 'direct',
     discord: 'direct',
