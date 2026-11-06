@@ -72,6 +72,34 @@ function escapedMarkdown(value) {
   }).join('');
 }
 
+/** Split markdown into prose and fenced-code segments. */
+function fenceSegments(source) {
+  const markers = fenceMarkers(source);
+  const segments = [];
+  let cursor = 0;
+  for (let index = 0; index < markers.length; index += 2) {
+    const opening = markers[index];
+    const closing = markers[index + 1];
+    if (opening.index > cursor) segments.push({ kind: 'plain', text: source.slice(cursor, opening.index) });
+    const end = closing.index + closing[0].length;
+    segments.push({ kind: 'fence', text: source.slice(opening.index, end) });
+    cursor = end;
+  }
+  if (cursor < source.length) segments.push({ kind: 'plain', text: source.slice(cursor) });
+  return segments;
+}
+
+/**
+ * Escape HTML entities in prose only. A fenced code block is rendered verbatim,
+ * so escaping it leaks literal `&lt;`/`&gt;` into code the reader copies — which
+ * is exactly what happened to every HTML snippet the model produced.
+ */
+function escapedOutsideFences(source) {
+  return fenceSegments(source)
+    .map((segment) => (segment.kind === 'fence' ? segment.text : escapedMarkdown(segment.text)))
+    .join('');
+}
+
 function plainRichChunks(source, limit) {
   return splitText(source, limit, escapedCharacterLength).map((chunk) => ({
     source: chunk,
@@ -81,18 +109,18 @@ function plainRichChunks(source, limit) {
 
 function fencedRichChunks(source, opening, closing, limit) {
   const body = source.slice(opening.length, source.length - closing.length);
-  const wrapperLength = escapedLength(opening)
-    + Math.max(escapedLength(closing), escapedLength('```'))
+  const wrapperLength = Array.from(opening).length
+    + Math.max(Array.from(closing).length, 3)
     + 1;
   const bodyLimit = limit - wrapperLength;
   if (bodyLimit < 1) throw new Error('Telegram Rich Markdown code fence exceeds the limit');
-  const bodyChunks = splitText(body, bodyLimit, escapedCharacterLength);
+  const bodyChunks = splitText(body, bodyLimit);
   return bodyChunks.map((bodyChunk, index) => {
     const last = index === bodyChunks.length - 1;
     const separator = bodyChunk.endsWith('\n') ? '' : '\n';
     const renderedClosing = last ? closing : '```';
     const sourceChunk = `${index === 0 ? opening : ''}${bodyChunk}${last ? closing : ''}`;
-    const markdown = escapedMarkdown(`${opening}${bodyChunk}${separator}${renderedClosing}`);
+    const markdown = `${opening}${bodyChunk}${separator}${renderedClosing}`;
     if (Array.from(markdown).length > limit) {
       throw new Error('Telegram Rich Markdown code block exceeds the limit');
     }
@@ -103,9 +131,10 @@ function fencedRichChunks(source, opening, closing, limit) {
 export function toTelegramRichMarkdown(value) {
   const markdown = textValue(value);
   assertCompleteFences(markdown);
-  // Rich Markdown also accepts HTML tags. Escape entities first so encoded or
-  // raw model output cannot be interpreted as Telegram-specific markup.
-  return escapedMarkdown(markdown);
+  // Rich Markdown also accepts HTML tags. Escape entities in prose so encoded or
+  // raw model output cannot be interpreted as Telegram-specific markup, but keep
+  // fenced code verbatim or the reader copies `&lt;` where the source had `<`.
+  return escapedOutsideFences(markdown);
 }
 
 export function splitTelegramRichMarkdown(value, limit = TELEGRAM_RICH_TEXT_LIMIT) {
@@ -113,29 +142,26 @@ export function splitTelegramRichMarkdown(value, limit = TELEGRAM_RICH_TEXT_LIMI
     throw new TypeError('Telegram Rich Markdown limit is invalid');
   }
   const source = textValue(value);
-  const markers = assertCompleteFences(source);
-  const complete = escapedMarkdown(source);
+  assertCompleteFences(source);
+  const segments = fenceSegments(source);
+  const complete = segments
+    .map((segment) => (segment.kind === 'fence' ? segment.text : escapedMarkdown(segment.text)))
+    .join('');
   if (Array.from(complete).length <= limit) return [{ source, markdown: complete }];
 
   const chunks = [];
-  let cursor = 0;
-  for (let index = 0; index < markers.length; index += 2) {
-    const opening = markers[index];
-    const closing = markers[index + 1];
-    if (opening.index > cursor) {
-      chunks.push(...plainRichChunks(source.slice(cursor, opening.index), limit));
+  for (const segment of segments) {
+    if (segment.kind === 'plain') {
+      chunks.push(...plainRichChunks(segment.text, limit));
+      continue;
     }
-    const end = closing.index + closing[0].length;
-    const fenced = source.slice(opening.index, end);
-    const rendered = escapedMarkdown(fenced);
-    if (Array.from(rendered).length <= limit) {
-      chunks.push({ source: fenced, markdown: rendered });
-    } else {
-      chunks.push(...fencedRichChunks(fenced, opening[0], closing[0], limit));
+    if (Array.from(segment.text).length <= limit) {
+      chunks.push({ source: segment.text, markdown: segment.text });
+      continue;
     }
-    cursor = end;
+    const [opening, closing] = fenceMarkers(segment.text);
+    chunks.push(...fencedRichChunks(segment.text, opening[0], closing[0], limit));
   }
-  if (cursor < source.length) chunks.push(...plainRichChunks(source.slice(cursor), limit));
   return chunks;
 }
 

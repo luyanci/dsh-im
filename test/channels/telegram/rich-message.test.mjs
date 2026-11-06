@@ -113,6 +113,10 @@ test('Telegram Rich Markdown keeps structure while escaping raw and encoded HTML
   const rich = toTelegramRichMarkdown(source);
   assert.match(rich, /^# 标题 😀/);
   assert.match(rich, /```js/);
+  // A fenced block is rendered verbatim: escaping it handed the reader `&lt;`
+  // where the code said `<`.
+  assert.match(rich, /const tag = "<script>";/);
+  assert.doesNotMatch(rich, /const tag = "&lt;script&gt;";/);
   assert.match(rich, /\| 公式 \| \$E = mc\^2\$ \|/);
   assert.match(rich, /\[链接\]\(https:\/\/example\.com\/\?a=1&amp;b=2\)/);
   assert.doesNotMatch(rich, /<tg-thinking>/);

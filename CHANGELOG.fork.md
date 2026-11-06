@@ -17,6 +17,18 @@ The fork always stays ahead of the upstream version: when upstream publishes a t
 next higher minor (upstream 5.11.0 → fork 5.12.0). That keeps `^x.y.z` ranges and update checks moving
 forward instead of treating a prerelease suffix as older.
 
+## [5.11.3] - 2026-11-06
+
+### Fixed / 修复
+
+- Telegram 出站富文本把代码块里的 `<` `>` `&` 也转成了 HTML 实体，读者在代码块里看到的是 `&lt;!DOCTYPE html&gt;`，
+  复制出来也不能用。现在只对代码块之外的正文字符串做实体转义（防止模型输出被当成 Telegram 标记），
+  围栏内的内容原样发送；长代码块被拆分时同样不再转义。（`telegram-rich-message.mjs`）
+  Telegram rich messages escaped `<`, `>` and `&` inside fenced code blocks too, so readers saw literal
+  `&lt;!DOCTYPE html&gt;` and could not copy the snippet. Entities are now escaped in prose only (that still keeps
+  model output from being read as Telegram markup); fenced blocks go out verbatim, including when a long block is
+  split across messages. (`telegram-rich-message.mjs`)
+
 ## [5.11.2] - 2026-11-06
 
 ### Fixed / 修复
