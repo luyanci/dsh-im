@@ -21,6 +21,19 @@ forward instead of treating a prerelease suffix as older.
 
 ### Fixed / 修复
 
+- 会话同步的最终答案在发送前会剔除宿主框架前缀（`Current runtime context.`、`[Compressed conversation section]`、
+  `<system-reminder>`、`[SCHEDULE REMINDER`）。起因是上游 issue 报告：一个服务提示触发的回合模型没产出正文，
+  聊天里却收到了注入的 runtime context 原文。该成因尚未复现确认，这道闸只做兜底——命中时跳过投递并记
+  `host-framing-leak`，日志里不带正文；正文中提到这些字样的正常回答不受影响。
+  Session sync now refuses to deliver text that starts with Host-injected framing (`Current runtime context.`,
+  `[Compressed conversation section]`, `<system-reminder>`, `[SCHEDULE REMINDER`). An upstream issue reported a
+  service turn whose model answered nothing yet the chat received the injected runtime context verbatim; the
+  cause is unconfirmed, so this is a backstop — the delivery is skipped with a `host-framing-leak` log that never
+  repeats the text, and an ordinary answer that merely mentions the framing still goes out.
+
+
+### Fixed / 修复
+
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
   现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。

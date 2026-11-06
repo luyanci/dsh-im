@@ -293,6 +293,55 @@ test('a refused markdown answer is sent once more as plain text', async () => {
   }]);
 });
 
+test('injected Host framing is never delivered as an answer', async () => {
+  // A service turn whose model answered nothing once sent the injected runtime
+  // context block to the chat verbatim. The answer path refuses that framing.
+  const cases = [
+    'Current runtime context. This snapshot supersedes earlier runtime-context snapshots.',
+    '[Compressed conversation section] the earlier span',
+    '<system-reminder>workspace instructions</system-reminder>',
+    '[SCHEDULE REMINDER] wake up',
+    '  \n Current runtime context. indented',
+  ];
+  for (const framing of cases) {
+    const sends = [];
+    const warnings = [];
+    const coordinator = createSessionSyncCoordinator({
+      deliveryService: deliveryService(sends),
+      loadSettings: settings({ deliverModelAnswers: true, modelIcon: '' }),
+      logger: { warn: (line) => warnings.push(line) },
+    });
+
+    void coordinator.enqueue('session-leak', turnStart());
+    void coordinator.enqueue('session-leak', userMessage('reminder framing', { kind: 'schedule' }));
+    void coordinator.enqueue('session-leak', assistantMessage(0, framing));
+    void coordinator.enqueue('session-leak', turnEnd());
+    await coordinator.whenIdle();
+
+    assert.deepEqual(sends, [], framing);
+    assert.equal(warnings.length, 1, framing);
+    assert.match(warnings[0], /host-framing-leak/, framing);
+    assert.doesNotMatch(warnings[0], /Current runtime context/, 'the text itself never reaches a log');
+  }
+});
+
+test('an ordinary answer that merely mentions the framing still goes out', async () => {
+  const sends = [];
+  const coordinator = createSessionSyncCoordinator({
+    deliveryService: deliveryService(sends),
+    loadSettings: settings({ deliverModelAnswers: true, modelIcon: '' }),
+    logger: { warn: () => {} },
+  });
+
+  void coordinator.enqueue('session-mention', turnStart());
+  void coordinator.enqueue('session-mention', userMessage('reminder framing', { kind: 'schedule' }));
+  void coordinator.enqueue('session-mention', assistantMessage(0, 'The prompt starts with "Current runtime context." — that is the Host framing.'));
+  void coordinator.enqueue('session-mention', turnEnd());
+  await coordinator.whenIdle();
+
+  assert.equal(sends.length, 1);
+});
+
 test('an uncertain markdown send is never repeated', async () => {
   let attempts = 0;
   const warnings = [];

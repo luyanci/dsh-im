@@ -13,6 +13,12 @@ import { getDeliverySyncSettingsStore } from '../../src/channels/shared/delivery
 import { deliverSessionSyncMirror } from '../../src/channels/shared/session-sync-registry.mjs';
 
 /**
+ * Opening lines only the Host writes into a prompt. A model can quote them, but
+ * an answer that *starts* with one is a leak of injected framing, not a reply.
+ */
+const HOST_FRAMING = /^(?:Current runtime context\.|\[Compressed conversation section\]|<system-reminder>|\[SCHEDULE REMINDER)/i;
+
+/**
  * Where the turn came from, as far as a chat mirror is concerned.
  *
  * - `im`: the turn was started by a message from this very messenger. Its
@@ -98,6 +104,15 @@ export function createSessionSyncCoordinator({
         + ` [${error?.code ?? error?.name ?? 'unknown-error'}]`,
     );
   };
+
+  /**
+   * Text the Host injected into the prompt, never text a model meant to answer.
+   * A service turn that produced no answer of its own once delivered the injected
+   * runtime-context block to the chat verbatim; prefix matching is a cheap last
+   * gate in front of the delivery path, and an ordinary answer never starts with
+   * one of these.
+   */
+  const isHostFraming = (text) => HOST_FRAMING.test(text.trimStart());
 
   const logUndelivered = (sessionId, phase, reason) => {
     // The address comes from the binding, so there is nothing secret to hide
@@ -266,6 +281,13 @@ export function createSessionSyncCoordinator({
     if (state.echoFailed) return;
     const text = state.assistant.text;
     if (!text) return;
+    if (isHostFraming(text)) {
+      logger.warn?.(
+        `[dsh-im] Session sync assistant delivery skipped host framing`
+          + ` [host-framing-leak] session=${sessionId}`,
+      );
+      return;
+    }
     // The card carries the answer itself, so it gets the text without the icon
     // label that marks a delivered message.
     await deliver(
