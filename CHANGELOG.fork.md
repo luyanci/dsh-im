@@ -21,30 +21,35 @@ forward instead of treating a prerelease suffix as older.
 
 ### Fixed / 修复
 
-- OneBot 渠道引用图片/文件时，被引用的媒体现在会真正取回来：`get_msg` 的 `data.url` 是签名下载链接，
-  之前只把裸资源名写进引用块，模型拿到的是一句「只有个文件名」。现在引用块带一个惰性文件源，走既有的入站文件
-  管线下载并落盘，图片/文件因此可读；没有 `url` 的旧消息仍只保留附件名。
-  Quoted images and files on the OneBot channel are now actually fetched: `get_msg` carries the bytes behind a
-  signed `data.url`, and the quote used to expose only the bare resource name. The reference now offers a lazy file
-  source that the existing inbound-file pipeline downloads and stages, so quoted media is readable; a message with
-  no `url` keeps just the attachment name.
-
-
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
-  现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。
+  现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。（`81174877`）
   Telegram rich messages escaped `&`, `<` and `>` into HTML entities, but Telegram's rich renderer does not decode
   them: prose showed `&lt;b&gt;` and code blocks arrived as `&lt;!DOCTYPE html&gt;`, useless to copy. The markdown is
-  now sent unchanged with no entity escaping at all.
+  now sent unchanged with no entity escaping at all. (`81174877`)
 - 会话同步的最终答案在发送前会剔除宿主框架前缀（`Current runtime context.`、`[Compressed conversation section]`、
   `<system-reminder>`、`[SCHEDULE REMINDER`）。起因是上游 issue 报告：一个服务提示触发的回合模型没产出正文，
   聊天里却收到了注入的 runtime context 原文。该成因尚未复现确认，这道闸只做兜底——命中时跳过投递并记
-  `host-framing-leak`，日志里不带正文；正文中提到这些字样的正常回答不受影响。
+  `host-framing-leak`，日志里不带正文；正文中提到这些字样的正常回答不受影响。（`edd54690`）
   Session sync now refuses to deliver text that starts with Host-injected framing (`Current runtime context.`,
   `[Compressed conversation section]`, `<system-reminder>`, `[SCHEDULE REMINDER`). An upstream issue reported a
   service turn whose model answered nothing yet the chat received the injected runtime context verbatim; the
   cause is unconfirmed, so this is a backstop — the delivery is skipped with a `host-framing-leak` log that never
-  repeats the text, and an ordinary answer that merely mentions the framing still goes out.
+  repeats the text, and an ordinary answer that merely mentions the framing still goes out. (`edd54690`)
+- OneBot 渠道引用图片/文件时，被引用的媒体现在会真正取回来：`get_msg` 的 `data.url` 是签名下载链接，
+  之前只把裸资源名写进引用块，模型拿到的是一句「只有个文件名」。现在引用块带一个惰性文件源，走既有的入站文件
+  管线下载并落盘，图片/文件因此可读；没有 `url` 的旧消息仍只保留附件名。（`9bc89f24`）
+  Quoted images and files on the OneBot channel are now actually fetched: `get_msg` carries the bytes behind a
+  signed `data.url`, and the quote used to expose only the bare resource name. The reference now offers a lazy file
+  source that the existing inbound-file pipeline downloads and stages, so quoted media is readable; a message with
+  no `url` keeps just the attachment name. (`9bc89f24`)
+- Telegram 引用图片、文件、贴纸、语音或视频时，引用块现在带着被引用媒体的惰性下载源（`files`），
+  入站文件管线按需取回并落盘；此前引用只带一个附件名，所以「这张图里是什么？」永远答不上来。
+  引用贴纸取原始 webp、动画/视频贴纸取首帧缩略图；文件大小上限沿用入站文件管线的 `maxBytes`。
+  Quoted photos, documents, stickers, voice notes and videos on Telegram now carry a lazy `files` source, so the
+  inbound-file pipeline can fetch the quoted bytes on demand. Before this, a quote only held an attachment name and
+  "what is in this picture?" could not be answered. Stickers quote their webp (or the thumbnail for animated/video
+  stickers), and the inbound `maxBytes` limit still applies.
 
 ## [5.11.2] - 2026-11-06
 
