@@ -21,13 +21,12 @@ forward instead of treating a prerelease suffix as older.
 
 ### Fixed / 修复
 
-- Telegram 出站富文本把代码块里的 `<` `>` `&` 也转成了 HTML 实体，读者在代码块里看到的是 `&lt;!DOCTYPE html&gt;`，
-  复制出来也不能用。现在只对代码块之外的正文字符串做实体转义（防止模型输出被当成 Telegram 标记），
-  围栏内的内容原样发送；长代码块被拆分时同样不再转义。（`telegram-rich-message.mjs`）
-  Telegram rich messages escaped `<`, `>` and `&` inside fenced code blocks too, so readers saw literal
-  `&lt;!DOCTYPE html&gt;` and could not copy the snippet. Entities are now escaped in prose only (that still keeps
-  model output from being read as Telegram markup); fenced blocks go out verbatim, including when a long block is
-  split across messages. (`telegram-rich-message.mjs`)
+- Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
+  正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
+  现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。
+  Telegram rich messages escaped `&`, `<` and `>` into HTML entities, but Telegram's rich renderer does not decode
+  them: prose showed `&lt;b&gt;` and code blocks arrived as `&lt;!DOCTYPE html&gt;`, useless to copy. The markdown is
+  now sent unchanged with no entity escaping at all.
 
 ## [5.11.2] - 2026-11-06
 

@@ -90,7 +90,7 @@ async function committedArtifact(t) {
   return artifact;
 }
 
-test('Telegram Rich Markdown keeps structure while escaping raw and encoded HTML', () => {
+test('Telegram Rich Markdown keeps structure and sends HTML through unchanged', () => {
   const source = [
     '# 标题 😀',
     '',
@@ -113,15 +113,14 @@ test('Telegram Rich Markdown keeps structure while escaping raw and encoded HTML
   const rich = toTelegramRichMarkdown(source);
   assert.match(rich, /^# 标题 😀/);
   assert.match(rich, /```js/);
-  // A fenced block is rendered verbatim: escaping it handed the reader `&lt;`
-  // where the code said `<`.
+  // Telegram shows HTML entities literally, so nothing may be rewritten: the
+  // reader has to get back exactly what the model wrote.
   assert.match(rich, /const tag = "<script>";/);
-  assert.doesNotMatch(rich, /const tag = "&lt;script&gt;";/);
+  assert.equal(rich, source);
   assert.match(rich, /\| 公式 \| \$E = mc\^2\$ \|/);
-  assert.match(rich, /\[链接\]\(https:\/\/example\.com\/\?a=1&amp;b=2\)/);
-  assert.doesNotMatch(rich, /<tg-thinking>/);
-  assert.match(rich, /&lt;tg-thinking&gt;hidden&lt;\/tg-thinking&gt;/);
-  assert.match(rich, /&amp;lt;tg-thinking&amp;gt;/);
+  assert.match(rich, /\[链接\]\(https:\/\/example\.com\/\?a=1&b=2\)/);
+  assert.match(rich, /<tg-thinking>hidden<\/tg-thinking>/);
+  assert.match(rich, /&lt;tg-thinking&gt;encoded&lt;\/tg-thinking&gt;/);
 });
 
 test('Telegram splitters preserve every space, newline, Emoji, and long fenced-code character', () => {
@@ -475,7 +474,7 @@ test('Telegram final delivery degrades a definite Rich rejection directly to pla
   }, { kind: 'text', text: '<b>**answer**</b>', format: 'markdown' });
 
   assert.deepEqual(calls.map((call) => call.method), ['rich', 'plain']);
-  assert.equal(calls[0].payload.richMessage.markdown, '&lt;b&gt;**answer**&lt;/b&gt;');
+  assert.equal(calls[0].payload.richMessage.markdown, '<b>**answer**</b>');
   assert.equal(calls[1].payload.text, '<b>**answer**</b>');
   assert.ok(calls.every((call) => call.payload.replyToMessageId === 44));
   assert.deepEqual(result, {

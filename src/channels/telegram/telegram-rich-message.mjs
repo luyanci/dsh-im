@@ -8,18 +8,6 @@ function textValue(value) {
   return value;
 }
 
-function escapedCharacterLength(value) {
-  if (value === '&') return 5;
-  if (value === '<' || value === '>') return 4;
-  return 1;
-}
-
-function escapedLength(value) {
-  return Array.from(value).reduce((total, character) => (
-    total + escapedCharacterLength(character)
-  ), 0);
-}
-
 function preferredCut(points, offset, hardEnd, limit) {
   const minimum = offset + Math.floor(limit * 0.5);
   for (let index = hardEnd - 1; index >= minimum; index -= 1) {
@@ -63,15 +51,6 @@ function assertCompleteFences(markdown) {
   return markers;
 }
 
-function escapedMarkdown(value) {
-  return Array.from(value, (character) => {
-    if (character === '&') return '&amp;';
-    if (character === '<') return '&lt;';
-    if (character === '>') return '&gt;';
-    return character;
-  }).join('');
-}
-
 /** Split markdown into prose and fenced-code segments. */
 function fenceSegments(source) {
   const markers = fenceMarkers(source);
@@ -89,22 +68,8 @@ function fenceSegments(source) {
   return segments;
 }
 
-/**
- * Escape HTML entities in prose only. A fenced code block is rendered verbatim,
- * so escaping it leaks literal `&lt;`/`&gt;` into code the reader copies — which
- * is exactly what happened to every HTML snippet the model produced.
- */
-function escapedOutsideFences(source) {
-  return fenceSegments(source)
-    .map((segment) => (segment.kind === 'fence' ? segment.text : escapedMarkdown(segment.text)))
-    .join('');
-}
-
 function plainRichChunks(source, limit) {
-  return splitText(source, limit, escapedCharacterLength).map((chunk) => ({
-    source: chunk,
-    markdown: escapedMarkdown(chunk),
-  }));
+  return splitText(source, limit).map((chunk) => ({ source: chunk, markdown: chunk }));
 }
 
 function fencedRichChunks(source, opening, closing, limit) {
@@ -131,10 +96,10 @@ function fencedRichChunks(source, opening, closing, limit) {
 export function toTelegramRichMarkdown(value) {
   const markdown = textValue(value);
   assertCompleteFences(markdown);
-  // Rich Markdown also accepts HTML tags. Escape entities in prose so encoded or
-  // raw model output cannot be interpreted as Telegram-specific markup, but keep
-  // fenced code verbatim or the reader copies `&lt;` where the source had `<`.
-  return escapedOutsideFences(markdown);
+  // Telegram's rich renderer shows HTML entities literally — escaping turned every
+  // `&`, `<` and `>` into `&amp;`/`&lt;`/`&gt;` on the reader's screen, breaking
+  // code samples and ordinary text alike. Send the markdown unchanged.
+  return markdown;
 }
 
 export function splitTelegramRichMarkdown(value, limit = TELEGRAM_RICH_TEXT_LIMIT) {
@@ -144,10 +109,7 @@ export function splitTelegramRichMarkdown(value, limit = TELEGRAM_RICH_TEXT_LIMI
   const source = textValue(value);
   assertCompleteFences(source);
   const segments = fenceSegments(source);
-  const complete = segments
-    .map((segment) => (segment.kind === 'fence' ? segment.text : escapedMarkdown(segment.text)))
-    .join('');
-  if (Array.from(complete).length <= limit) return [{ source, markdown: complete }];
+  if (Array.from(source).length <= limit) return [{ source, markdown: source }];
 
   const chunks = [];
   for (const segment of segments) {
