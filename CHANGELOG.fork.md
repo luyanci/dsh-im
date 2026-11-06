@@ -17,7 +17,7 @@ The fork always stays ahead of the upstream version: when upstream publishes a t
 next higher minor (upstream 5.11.0 → fork 5.12.0). That keeps `^x.y.z` ranges and update checks moving
 forward instead of treating a prerelease suffix as older.
 
-## [5.11.3] - 2026-11-06
+## [UNRELEASED]
 
 ### Fixed / 修复
 
