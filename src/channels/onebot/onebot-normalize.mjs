@@ -252,6 +252,12 @@ export function normalizeOneBotEvent(event, {
   const senderName = event.sender?.card
     || event.sender?.nickname
     || `QQ ${senderId}`;
+  // `sub_type: 'group'` marks a temporary session opened from a group.
+  const temporaryGroupId = direct
+    && event.sub_type === 'group'
+    && event.group_id !== undefined && event.group_id !== null
+    ? String(event.group_id)
+    : undefined;
   const addressed = direct || groupTriggerAddressed(groupTriggers, {
     chatId: String(chatId),
     senderId: String(senderId),
@@ -293,8 +299,14 @@ export function normalizeOneBotEvent(event, {
     // message counts as tagging too, which the runtime adds once it has resolved
     // the quote author.
     taggedAtSelf: tagged,
+    // A private event with `sub_type: 'group'` is a temporary group session: the
+    // reply goes through send_private_msg, but the origin group must travel with
+    // it or the answer is filed as an ordinary DM.
     replyTarget: direct
-      ? { userId: String(chatId) }
+      ? {
+        userId: String(chatId),
+        ...(temporaryGroupId === undefined ? {} : { temporaryGroupId }),
+      }
       : { groupId: String(chatId) },
     conversationKey: key,
   };

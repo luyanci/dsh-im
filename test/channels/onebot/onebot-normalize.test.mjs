@@ -101,6 +101,36 @@ test('a reply carries a loader when the runtime can resolve quoted ids', async (
   assert.deepEqual(asked, ['392264416']);
 });
 
+test('a group-temporary private session keeps its origin group', () => {
+  const message = normalizeOneBotEvent({
+    post_type: 'message',
+    message_type: 'private',
+    sub_type: 'group',
+    group_id: GROUP_ID,
+    user_id: USER_ID,
+    message_id: 9,
+    sender: { user_id: USER_ID, nickname: 'LYX233' },
+    message: [{ type: 'text', data: { text: '临时会话' } }],
+  }, { selfId: SELF_ID, groupTriggers: triggers });
+  // The conversation stays per user, but the reply must carry the group context.
+  assert.equal(message.kind, 'direct');
+  assert.equal(message.replyTarget.userId, String(USER_ID));
+  assert.equal(message.replyTarget.temporaryGroupId, String(GROUP_ID));
+});
+
+test('an ordinary private chat carries no group context', () => {
+  const message = normalizeOneBotEvent({
+    post_type: 'message',
+    message_type: 'private',
+    sub_type: 'friend',
+    user_id: USER_ID,
+    message_id: 10,
+    sender: { user_id: USER_ID },
+    message: [{ type: 'text', data: { text: '好友' } }],
+  }, { selfId: SELF_ID, groupTriggers: triggers });
+  assert.deepEqual(message.replyTarget, { userId: String(USER_ID) });
+});
+
 test('a get_msg payload becomes the quoted reference the pipeline renders', () => {
   const reference = oneBotQuotedReference({
     message_type: 'group',

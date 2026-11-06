@@ -17,8 +17,8 @@ function fakeApi() {
       calls.push({ action: 'send_group_msg', groupId, message });
       return { message_id: calls.length };
     },
-    async sendPrivateMsg(userId, message) {
-      calls.push({ action: 'send_private_msg', userId, message });
+    async sendPrivateMsg(userId, message, groupId) {
+      calls.push({ action: 'send_private_msg', userId, message, groupId });
       return { message_id: calls.length };
     },
     async uploadGroupFile(groupId, file, name) {
@@ -63,6 +63,15 @@ test('a private conversation routes to send_private_msg', async () => {
   const bot = createOneBotBotClient({ api });
   await bot.sendText({ userId: '2058282593' }, 'hi');
   assert.equal(api.calls[0].action, 'send_private_msg');
+  assert.equal(api.calls[0].groupId, undefined);
+});
+
+test('a group-temporary session passes its origin group to send_private_msg', async () => {
+  const api = fakeApi();
+  const bot = createOneBotBotClient({ api });
+  await bot.sendText({ userId: '2058282593', temporaryGroupId: '904897306' }, 'hi');
+  assert.equal(api.calls[0].action, 'send_private_msg');
+  assert.equal(api.calls[0].groupId, '904897306');
 });
 
 test('a delivery block degrades to its text', async () => {

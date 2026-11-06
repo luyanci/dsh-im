@@ -87,10 +87,16 @@ export function createOneBotApi(session) {
     /** `{ user_id, nickname }` of the logged-in account. */
     getLoginInfo: () => session.request('get_login_info'),
 
-    /** Send to a private chat; resolves `{ message_id }`. */
-    sendPrivateMsg: (userId, message) => session.request('send_private_msg', {
+    /**
+     * Send to a private chat; resolves `{ message_id }`. A group-temporary
+     * session passes the originating `groupId` so the reply lands in that
+     * session rather than a plain DM.
+     */
+    sendPrivateMsg: (userId, message, groupId) => session.request('send_private_msg', {
       user_id: Number(userId),
       message,
+      ...(groupId === undefined || groupId === null || groupId === ''
+        ? {} : { group_id: Number(groupId) }),
     }),
 
     /** Send to a group; resolves `{ message_id }`. */

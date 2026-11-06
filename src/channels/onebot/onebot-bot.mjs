@@ -110,7 +110,11 @@ export function createOneBotBotClient({
     const kind = targetKind(target);
     const client = currentApi();
     if (kind === 'group') return client.sendGroupMsg(target.groupId, message);
-    if (kind === 'user') return client.sendPrivateMsg(target.userId, message);
+    // A group-temporary session answers through send_private_msg, but the group
+    // it came from has to travel along or the reply is treated as a plain DM.
+    if (kind === 'user') {
+      return client.sendPrivateMsg(target.userId, message, target.temporaryGroupId);
+    }
     throw new Error('OneBot target must carry groupId or userId');
   }
 
