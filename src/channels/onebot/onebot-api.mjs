@@ -112,6 +112,12 @@ export function createOneBotApi(session) {
     getMsg: (messageId) => session.request('get_msg', { message_id: Number(messageId) }),
 
     /**
+     * Every group the account has joined, for the group-rules settings panel.
+     * Shape varies by implementation, so the caller normalizes it.
+     */
+    getGroupList: () => session.request('get_group_list'),
+
+    /**
      * Upload a file into a group. `file` accepts a path, an http url or a
      * `base64://` payload; `name` is what the group member sees.
      */

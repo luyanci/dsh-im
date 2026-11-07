@@ -387,3 +387,33 @@ export function oneBotAddressedForQuote(groupTriggers, { chatId, senderId }) {
     tagged: true,
   });
 }
+
+/**
+ * `get_group_list` → the settings panel's group option list.
+ *
+ * Implementations disagree on the field names (`group_id` vs `group`, and
+ * `member_count` is optional), so everything is coerced and unusable entries are
+ * dropped instead of failing the whole page.
+ */
+export function oneBotApiGroupList(value) {
+  if (!Array.isArray(value)) return [];
+  const groups = [];
+  const seen = new Set();
+  for (const entry of value) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const rawId = entry.group_id ?? entry.group;
+    if (rawId === undefined || rawId === null) continue;
+    const groupId = String(rawId).trim();
+    if (!groupId || seen.has(groupId)) continue;
+    seen.add(groupId);
+    const name = typeof entry.group_name === 'string' && entry.group_name.trim()
+      ? entry.group_name.trim() : null;
+    const count = Number(entry.member_count);
+    groups.push({
+      groupId,
+      groupName: name,
+      memberCount: Number.isInteger(count) && count >= 0 ? count : null,
+    });
+  }
+  return groups;
+}

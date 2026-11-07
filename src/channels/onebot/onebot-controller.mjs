@@ -9,6 +9,11 @@
  */
 import { deriveOneBotBotIdentity, normalizeOneBotSettings, ONEBOT_IMAGE_FORMATS } from './onebot-config-store.mjs';
 import { createOneBotRuntime, createOneBotRuntimeStatus } from './onebot-runtime.mjs';
+import {
+  GROUP_TRIGGER_VERSION,
+  groupTriggersSettings,
+  normalizeGroupTriggers,
+} from '../telegram/group-triggers.mjs';
 
 function cleanString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -195,6 +200,68 @@ export class OneBotController {
     const status = this.status();
     if (!sendTest) return status;
     return { ...status, testMessage: await this.#sendTestMessage(botId) };
+  }
+
+  /**
+   * The groups this account has joined.
+   *
+   * A disconnected account cannot answer, and that must not break the settings
+   * page: the caller decides whether an empty list is acceptable.
+   */
+  async listGroups(botId) {
+    const runtime = this.#runtimes.get(botId);
+    if (!runtime || typeof runtime.listGroups !== 'function') {
+      const error = new Error('OneBot 账号未连接，暂时读不到群列表。');
+      error.code = 'onebot-not-connected';
+      throw error;
+    }
+    return runtime.listGroups();
+  }
+
+  /** Per-group reply rules plus the group options the panel offers. */
+  async groupRulesPanel(botId) {
+    const config = this.#configStore.get(botId);
+    if (!config) throw new Error('Unknown OneBot bot');
+    let available = [];
+    try {
+      available = await this.listGroups(botId);
+    } catch {
+      // Not connected: rules are still editable and savable, the picker is empty.
+      available = [];
+    }
+    const seen = available.map((group) => ({ chatId: group.groupId, title: group.groupName }));
+    return { ...groupTriggersSettings(config.groupTriggers, seen), available };
+  }
+
+  /**
+   * Persist the per-group reply rules, then restart this bot so the next inbound
+   * message uses them.
+   *
+   * `removed` lists the groups the owner deleted in the panel: they keep no rule
+   * and stay hidden from the page until a rule is added again.
+   */
+  async updateGroupRules(botId, { config: value, removed = [] } = {}) {
+    const stored = this.#configStore.get(botId);
+    if (!stored) throw new Error('Unknown OneBot bot');
+    const normalized = normalizeGroupTriggers(value);
+    const groups = { ...normalized.groups };
+    const hidden = new Set(normalizeGroupTriggers(stored.groupTriggers).hiddenGroupIds);
+    for (const entry of Array.isArray(removed) ? removed : []) {
+      const id = typeof entry === 'string' ? entry.trim() : '';
+      if (!id) continue;
+      delete groups[id];
+      hidden.add(id);
+    }
+    for (const id of Object.keys(groups)) hidden.delete(id);
+    const next = {
+      version: GROUP_TRIGGER_VERSION,
+      defaults: normalized.defaults,
+      groups,
+      hiddenGroupIds: [...hidden],
+    };
+    await this.#configStore.update(botId, { groupTriggers: next });
+    await this.#restart(botId);
+    return this.groupRulesPanel(botId);
   }
 
   /**

@@ -204,6 +204,35 @@ test('the connect check sends a test message to the last conversation', async (t
   assert.equal(idle.testMessage, undefined);
 });
 
+test('group rules are saved per account and the listener restarts with them', async (t) => {
+  const { controller, configStore, log } = await setup();
+  t.after(() => controller.close());
+  const added = await controller.addBot({ selfId: SELF_ID, port: 6850 });
+  const botId = added.bots[0].botId;
+
+  // Without a live protocol end the panel still opens, just with no group list.
+  const panel = await controller.groupRulesPanel(botId);
+  assert.deepEqual(panel.defaults, { mode: 'mention', senders: [] });
+  assert.deepEqual(panel.available, []);
+  await assert.rejects(
+    () => controller.listGroups(botId),
+    (error) => error.code === 'onebot-not-connected',
+  );
+
+  const startedBefore = log.filter(([kind]) => kind === 'start').length;
+  const saved = await controller.updateGroupRules(botId, {
+    config: {
+      defaults: { mode: 'mention', senders: [] },
+      groups: { 904897306: { mode: 'all-list', senders: ['2058282593'] } },
+    },
+    removed: ['909906121'],
+  });
+  assert.equal(saved.groups['904897306'].mode, 'all-list');
+  assert.deepEqual(saved.groups['904897306'].senders, ['2058282593']);
+  assert.ok(log.filter(([kind]) => kind === 'start').length > startedBefore, 'the listener restarted');
+  assert.deepEqual(configStore.get(botId).groupTriggers.hiddenGroupIds, ['909906121']);
+});
+
 test('two accounts cannot share one listener port', async (t) => {
   const { controller } = await setup();
   t.after(() => controller.close());

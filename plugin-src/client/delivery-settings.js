@@ -9,6 +9,7 @@ import { FeishuVoiceSettingsPage } from './channels/feishu/voice-settings.js';
 import { FeishuSlashPanelSettingsPage } from './channels/feishu/slash-panel-settings.js';
 import { FeishuConversationDirectorySettingsPage } from './channels/feishu/conversation-directory-settings.js';
 import { TelegramGroupTriggersSettings } from './channels/telegram/group-triggers-settings.js';
+import { OneBotGroupRulesSettings } from './channels/onebot/group-rules-settings.js';
 import { h, imLocale, localizeTemplate, localizeText } from './i18n.js';
 
 export const DELIVERY_RPC_CHANNEL = '/dsh-im-delivery';
@@ -48,9 +49,15 @@ export const TELEGRAM_BOT_SETTINGS_TABS = Object.freeze([
   Object.freeze({ id: 'groups', label: '机器人群聊行为' }),
 ]);
 
+export const ONEBOT_BOT_SETTINGS_TABS = Object.freeze([
+  ...BOT_SETTINGS_TABS,
+  Object.freeze({ id: 'groups', label: '机器人群聊行为' }),
+]);
+
 export function botSettingsTabsForChannel(channel) {
   if (channel === 'feishu') return FEISHU_BOT_SETTINGS_TABS;
   if (channel === 'telegram') return TELEGRAM_BOT_SETTINGS_TABS;
+  if (channel === 'onebot') return ONEBOT_BOT_SETTINGS_TABS;
   return BOT_SETTINGS_TABS;
 }
 
@@ -829,6 +836,12 @@ export function DeliveryTargetSettingsPage({
       ? h(FeishuConversationDirectorySettingsPage, { account, rpcCall: accessRpcCall })
     : activeTab.id === 'groups' && channel === 'telegram'
       ? h(TelegramGroupTriggersSettings, {
+          key: `${channel}:${account.botId}:groups`,
+          account,
+          rpcCall: accessRpcCall,
+        })
+    : activeTab.id === 'groups' && channel === 'onebot'
+      ? h(OneBotGroupRulesSettings, {
           key: `${channel}:${account.botId}:groups`,
           account,
           rpcCall: accessRpcCall,

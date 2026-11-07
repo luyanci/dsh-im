@@ -67,6 +67,14 @@ forward instead of treating a prerelease suffix as older.
   所以发出去是一张静止图；`image/gif` 也不再被并进相册（相册只有静态图）。
   Outbound `.gif` now goes through `sendAnimation`. It used to fall into `sendPhoto`, where Telegram keeps only the
   first frame, so the reader got a still picture; `image/gif` is also excluded from photo albums for the same reason.
+- OneBot 渠道新增「机器人群聊行为」设置（每个账号一个独立页签，入口和 Telegram 对齐）：每个群可以单独设
+  `不响应` / `被 @ 或回复时` / `所有消息`，并可限定只在名单成员发言时响应；规则与 Telegram 共用同一个规范化器，
+  缺省 `mention`，所以老配置升级后行为不变。群列表直接问协议端（`get_group_list`），未连接时可手填群号；
+  保存后只重启该账号。设计见 `docs/onebot-group-behavior.md`。
+  The OneBot channel now has a 「机器人群聊行为」 page per account, mirroring Telegram: each group can be set to
+  `off` / `mention` / `all`, optionally limited to listed member ids. The rules reuse Telegram's normalizer, default
+  to `mention`, so existing configs behave the same. The group list comes from the protocol end (`get_group_list`,
+  manual id entry when disconnected) and saving restarts only that account. Design: `docs/onebot-group-behavior.md`.
 
 ## [5.11.2] - 2026-11-06
 

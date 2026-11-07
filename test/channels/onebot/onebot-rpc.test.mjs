@@ -128,6 +128,58 @@ test('access-policy.set forwards the policy itself, not the envelope', async () 
   assert.equal(incomplete.error.code, 'bad-request');
 });
 
+test('group rules are read, listed and saved through the controller', async () => {
+  const calls = [];
+  const controller = {
+    groupRulesPanel: async (botId) => {
+      calls.push(['panel', botId]);
+      return { defaults: { mode: 'mention', senders: [] }, groups: {}, seen: [], available: [] };
+    },
+    listGroups: async (botId) => {
+      calls.push(['list', botId]);
+      return [{ groupId: '904897306', groupName: '小号集合！', memberCount: 5 }];
+    },
+    updateGroupRules: async (botId, payload) => {
+      calls.push(['update', botId, payload]);
+      return { defaults: payload.config.defaults, groups: payload.config.groups, seen: [], available: [] };
+    },
+  };
+  const handler = createOneBotRpcHandler(controller);
+
+  const panel = await handler(ONEBOT_ENDPOINTS.getGroupRules, { botId: 'onebot_abc' });
+  assert.equal(panel.ok, true);
+  assert.deepEqual(calls.at(-1), ['panel', 'onebot_abc']);
+
+  const listed = await handler(ONEBOT_ENDPOINTS.listGroups, { botId: 'onebot_abc' });
+  assert.equal(listed.ok, true);
+  assert.equal(listed.value[0].groupId, '904897306');
+
+  const saved = await handler(ONEBOT_ENDPOINTS.setGroupRules, {
+    botId: 'onebot_abc',
+    config: {
+      defaults: { mode: 'mention', senders: [] },
+      groups: { 904897306: { mode: 'all', senders: [] } },
+    },
+    removed: ['909906121'],
+  });
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls.at(-1), ['update', 'onebot_abc', {
+    config: {
+      defaults: { mode: 'mention', senders: [] },
+      groups: { 904897306: { mode: 'all', senders: [] } },
+    },
+    removed: ['909906121'],
+  }]);
+
+  // An unknown mode falls back to the default; only a malformed rule set is refused.
+  const badSenders = await handler(ONEBOT_ENDPOINTS.setGroupRules, {
+    botId: 'onebot_abc',
+    config: { defaults: { mode: 'all', senders: 'nope' }, groups: {} },
+  });
+  assert.equal(badSenders.ok, false);
+  assert.equal(badSenders.error.code, 'bad-request');
+});
+
 test('an unknown endpoint and a controller failure both fail closed', async () => {
   const handler = createOneBotRpcHandler(fakeController());
   const unknown = await handler('onebot.nope', {});

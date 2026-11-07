@@ -10,6 +10,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { t } from '../shared/i18n.mjs';
+import { normalizeGroupTriggers } from '../telegram/group-triggers.mjs';
 
 const EMPTY_DOCUMENT = Object.freeze({ version: 1, bots: [] });
 
@@ -81,6 +82,9 @@ function normalizeBot(value) {
     name: cleanString(value.name) ?? `QQ ${maskOneBotSelfId(selfId)}`,
     accessTokenRef: cleanString(value.accessTokenRef) ?? identity.accessTokenRef,
     ...normalizeOneBotSettings(value),
+    // Per-group reply rules, same shape as Telegram's: the normalizer is shared,
+    // and an absent field means the `mention` default, exactly like before.
+    groupTriggers: normalizeGroupTriggers(value.groupTriggers),
   };
 }
 

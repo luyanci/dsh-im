@@ -13,6 +13,7 @@ import { createOneBotServer } from './onebot-connection.mjs';
 import {
   normalizeOneBotEvent,
   oneBotAddressedForQuote,
+  oneBotApiGroupList,
   oneBotQuotedReference,
 } from './onebot-normalize.mjs';
 
@@ -304,6 +305,23 @@ export class OneBotRuntime {
       throw error;
     }
     return this.#bot.sendText(target, text);
+  }
+
+  /**
+   * The groups this account has joined, for the group-rules settings page.
+   *
+   * Nothing is cached: a group joined or left five minutes ago must show up
+   * correctly, and the panel is opened rarely enough to pay one round trip.
+   */
+  async listGroups() {
+    const session = this.#session;
+    if (session === null || session === undefined) {
+      const error = new Error('OneBot 账号未连接。');
+      error.code = 'onebot-not-connected';
+      throw error;
+    }
+    const api = this.#createApi(session);
+    return oneBotApiGroupList(await api.getGroupList());
   }
 
   async stop() {

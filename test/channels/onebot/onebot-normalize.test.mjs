@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   normalizeOneBotEvent,
+  oneBotApiGroupList,
   oneBotQuotedReference,
   OneBotFormatError,
 } from '../../../src/channels/onebot/onebot-normalize.mjs';
@@ -202,6 +203,22 @@ test('a quoted image without a url stays an attachment with no bytes', () => {
   });
   assert.deepEqual(reference.attachments, [{ kind: 'image', name: 'abc.jpg' }]);
   assert.equal(reference.files, undefined);
+});
+
+test('get_group_list becomes the settings page group options', () => {
+  assert.deepEqual(oneBotApiGroupList([
+    { group_id: 904897306, group_name: '小号集合！', member_count: 5 },
+    { group_id: 909906121, group_name: '莎莉的蘑菇屋🍄' },
+    { group_id: 904897306, group_name: '重复的群号应被丢弃' },
+    { group_name: '没有群号' },
+    null,
+    'junk',
+  ]), [
+    { groupId: '904897306', groupName: '小号集合！', memberCount: 5 },
+    { groupId: '909906121', groupName: '莎莉的蘑菇屋🍄', memberCount: null },
+  ]);
+  assert.deepEqual(oneBotApiGroupList({ not: 'an array' }), []);
+  assert.deepEqual(oneBotApiGroupList(undefined), []);
 });
 
 test('a deleted quote is null, an unreadable one is unsupported', () => {

@@ -19,6 +19,7 @@ import {
 import { SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload } from '../../../../src/channels/shared/message-mode.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
 import { SET_ALIAS_ENDPOINT, validAliasPayload } from '../shared/bot-alias-rpc.mjs';
+import { validGroupTriggersConfig } from '../shared/group-triggers-rpc.mjs';
 
 export const ONEBOT_RPC_CHANNEL = '/onebot';
 
@@ -35,6 +36,9 @@ export const ONEBOT_ENDPOINTS = Object.freeze({
   setBusyMessageMode: SET_MESSAGE_MODE_ENDPOINT,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
   setAlias: SET_ALIAS_ENDPOINT,
+  getGroupRules: 'onebot.group-rules.get',
+  setGroupRules: 'onebot.group-rules.set',
+  listGroups: 'onebot.group-rules.list',
 });
 
 export const ONEBOT_RPC_ENDPOINTS = Object.freeze(Object.values(ONEBOT_ENDPOINTS));
@@ -67,6 +71,12 @@ function validPath(value) {
 function validAccessToken(value) {
   return value === undefined || value === null
     || (typeof value === 'string' && value.length <= 512);
+}
+
+/** Group ids the panel asks to remove: trimmed non-empty strings, bounded. */
+function validRemovedGroupIds(value) {
+  return value === undefined || (Array.isArray(value)
+    && value.every((entry) => typeof entry === 'string' && entry.trim().length > 0 && entry.length <= 64));
 }
 
 function validSelfIds(value) {
@@ -136,6 +146,23 @@ function validate(endpoint, payload) {
         return 'onebot.set-settings received an unknown image format.';
       }
       return null;
+    case ONEBOT_ENDPOINTS.getGroupRules:
+      return exactKeys(payload, ['botId']) && typeof payload.botId === 'string' && payload.botId
+        ? null : 'onebot.group-rules.get requires a botId.';
+    case ONEBOT_ENDPOINTS.listGroups:
+      return exactKeys(payload, ['botId']) && typeof payload.botId === 'string' && payload.botId
+        ? null : 'onebot.group-rules.list requires a botId.';
+    case ONEBOT_ENDPOINTS.setGroupRules: {
+      if (!exactKeys(payload, ['botId', 'config', 'removed'])) {
+        return 'onebot.group-rules.set accepts botId, config and removed only.';
+      }
+      if (typeof payload.botId !== 'string' || !payload.botId) {
+        return 'onebot.group-rules.set requires a botId.';
+      }
+      return validGroupTriggersConfig(payload.config) !== null
+        && validRemovedGroupIds(payload.removed)
+        ? null : 'onebot.group-rules.set received invalid rules.';
+    }
     default: {
       const shared = SHARED_ENDPOINTS.find(([name]) => name === endpoint);
       if (shared === undefined) return null;
@@ -171,6 +198,18 @@ export function createOneBotRpcHandler(controller) {
           const { botId, ...patch } = payload;
           return { ok: true, value: await controller.setSettings(botId, patch) };
         }
+        case ONEBOT_ENDPOINTS.getGroupRules:
+          return { ok: true, value: await controller.groupRulesPanel(payload.botId) };
+        case ONEBOT_ENDPOINTS.listGroups:
+          return { ok: true, value: await controller.listGroups(payload.botId) };
+        case ONEBOT_ENDPOINTS.setGroupRules:
+          return {
+            ok: true,
+            value: await controller.updateGroupRules(payload.botId, {
+              config: payload.config,
+              removed: payload.removed ?? [],
+            }),
+          };
         default: {
           const shared = SHARED_ENDPOINTS.find(([name]) => name === endpoint);
           if (shared === undefined) return failure('onebot-unknown-endpoint', `Unknown OneBot endpoint: ${endpoint}`);

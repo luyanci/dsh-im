@@ -74,6 +74,28 @@ test('update patches one field and keeps the rest', async () => {
   assert.equal(instance.list().length, 1);
 });
 
+test('group reply rules survive a save and reload with the mention default', async () => {
+  const { instance, path } = await store();
+  const saved = await instance.save({ selfId: '2951316926' });
+  // A fresh bot answers to mentions only, exactly like before this setting existed.
+  assert.deepEqual(saved.groupTriggers.defaults, { mode: 'mention', senders: [] });
+
+  const rules = {
+    version: 1,
+    defaults: { mode: 'mention', senders: [] },
+    groups: { 904897306: { mode: 'all', senders: ['2058282593'] } },
+    hiddenGroupIds: [],
+  };
+  await instance.update(saved.botId, { groupTriggers: rules });
+  const reopened = await new OneBotConfigStore(path).load();
+  const bot = reopened.getByPlatformId('2951316926');
+  assert.equal(bot.groupTriggers.groups['904897306'].mode, 'all');
+  assert.deepEqual(bot.groupTriggers.groups['904897306'].senders, ['2058282593']);
+  // Updating an unrelated field must not drop the rules.
+  const patched = await instance.update(saved.botId, { port: 6702 });
+  assert.equal(patched.groupTriggers.groups['904897306'].mode, 'all');
+});
+
 test('remove reports whether anything changed', async () => {
   const { instance } = await store();
   const saved = await instance.save({ selfId: '2951316926' });
