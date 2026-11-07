@@ -2260,7 +2260,11 @@ export class HarnessClient {
             // A completed turn can do all its work through tools without text.
             // Missing end reasons retain the existing empty-reply failure.
             if (tracker.reason != null && harnessTurnSucceeded(tracker.reason)) {
-              return t('本轮处理已结束，没有文本回复。');
+              // `silent` is the owner's choice for this bot: end the turn without
+              // a message instead of the built-in notice.
+              return options.emptyAnswerMode === 'silent'
+                ? ''
+                : t('本轮处理已结束，没有文本回复。');
             }
             throw harnessTurnError(tracker.reason);
           }

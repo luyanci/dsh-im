@@ -1,4 +1,8 @@
 import { SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload } from '../../../../src/channels/shared/message-mode.mjs';
+import {
+  SET_EMPTY_ANSWER_MODE_ENDPOINT,
+  validEmptyAnswerPayload,
+} from '../../../../src/channels/shared/empty-answer.mjs';
 import { createConnectionDiagnostics, diagnosticRpcResult } from '../../../../src/channels/shared/connection-error.mjs';
 import { SET_ALIAS_ENDPOINT, validAliasPayload } from './bot-alias-rpc.mjs';
 import { registerManagementRpc } from '../../../management-rpc.mjs';
@@ -35,6 +39,7 @@ export const TOKEN_BOT_ENDPOINTS = Object.freeze({
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
   setBusyMessageMode: SET_MESSAGE_MODE_ENDPOINT,
+  setEmptyAnswerMode: SET_EMPTY_ANSWER_MODE_ENDPOINT,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
   setAlias: SET_ALIAS_ENDPOINT,
   setThinkingTraces: SET_THINKING_TRACES_ENDPOINT,
@@ -102,6 +107,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === TOKEN_BOT_ENDPOINTS.setBusyMessageMode) {
     return validMessageModePayload(payload)
       ? null : '请提交有效的消息处理方式。';
+  }
+  if (endpoint === TOKEN_BOT_ENDPOINTS.setEmptyAnswerMode) {
+    return validEmptyAnswerPayload(payload)
+      ? null : '请提交有效的空白输出处理方式。';
   }
   if (endpoint === TOKEN_BOT_ENDPOINTS.setContextEnhancement) {
     return validContextEnhancementPayload(payload)
@@ -219,6 +228,9 @@ export function createTokenBotRpcHandler(controller, { channel }) {
       } else if (endpoint === TOKEN_BOT_ENDPOINTS.setBusyMessageMode) {
         if (typeof controller.updateBusyMessageMode !== 'function') throw new Error('Message mode update is unavailable');
         value = await controller.updateBusyMessageMode(payload.botId, payload.busyMessageMode);
+      } else if (endpoint === TOKEN_BOT_ENDPOINTS.setEmptyAnswerMode) {
+        if (typeof controller.updateEmptyAnswerMode !== 'function') throw new Error('Empty-answer mode update is unavailable');
+        value = await controller.updateEmptyAnswerMode(payload.botId, payload.emptyAnswerMode);
       } else if (endpoint === TOKEN_BOT_ENDPOINTS.setContextEnhancement) {
         if (typeof controller.updateContextEnhancement !== 'function') throw new Error('Context enhancement update is unavailable');
         value = await controller.updateContextEnhancement(payload.botId, payload.config);

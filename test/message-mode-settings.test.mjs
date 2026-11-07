@@ -50,6 +50,23 @@ test('message mode defaults to queue, persists per bot and is live in existing s
   assert.equal(JSON.parse(await readFile(path, 'utf8')).busyMessageModes, undefined);
 });
 
+test('an empty answer is announced by default and silent when chosen', async (t) => {
+  const { path, directory, store } = await fixture(t);
+  const state = { sessionFor: () => null };
+  const scope = createBotWorkspaceScope({}, { botId: 'bot_one', workspaces: store, state });
+  // Existing bots keep the notice they always had.
+  assert.equal(scope.harness.currentEmptyAnswerMode(), 'notice');
+  await store.setEmptyAnswerMode('bot_one', 'silent');
+  assert.equal(scope.harness.currentEmptyAnswerMode(), 'silent');
+  assert.equal(store.emptyAnswerModeFor('bot_two'), 'notice');
+  const restored = await new BotWorkspaceStore(path, { defaultWorkspace: directory }).load();
+  assert.equal(restored.emptyAnswerModeFor('bot_one'), 'silent');
+  assert.equal(restored.emptyAnswerModeFor('bot_two'), 'notice');
+  // Choosing the default again removes the field instead of storing 'notice'.
+  await store.setEmptyAnswerMode('bot_one', 'notice');
+  assert.equal(JSON.parse(await readFile(path, 'utf8')).emptyAnswerModes, undefined);
+});
+
 test('message mode failed disk writes and status projections leave the committed setting unchanged', async (t) => {
   const { path, store, controller } = await fixture(t);
   await store.setBusyMessageMode('bot_one', 'steer');

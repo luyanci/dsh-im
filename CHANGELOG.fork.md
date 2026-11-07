@@ -75,6 +75,13 @@ forward instead of treating a prerelease suffix as older.
   `off` / `mention` / `all`, optionally limited to listed member ids. The rules reuse Telegram's normalizer, default
   to `mention`, so existing configs behave the same. The group list comes from the protocol end (`get_group_list`,
   manual id entry when disconnected) and saving restarts only that account. Design: `docs/onebot-group-behavior.md`.
+- 每个 bot 的「通用」页签新增「空白输出」：回合正常结束但没有任何文本时，默认发一句「本轮处理已结束，没有文本回复。」，
+  也可以选静默（只把进度气泡收掉，不发言）。开关存在共享的每-bot 设置文档里，默认 `notice`，老配置行为不变；
+  有附件没正文时的「任务已完成。」不受影响。
+  Every bot's 「通用」 tab now has an 「空白输出」 choice: when a turn ends successfully with no text, the bot either
+  says 「本轮处理已结束，没有文本回复。」 (default) or stays silent, dropping only the progress bubble. The switch
+  lives in the shared per-bot settings document, defaults to `notice`, so existing bots behave exactly as before; the
+  「任务已完成。」 notice for a file-only turn is unchanged.
 
 ## [5.11.2] - 2026-11-06
 

@@ -1352,6 +1352,7 @@ export class TextHarnessBridge {
         titleText: batchSubmission?.title,
         sourceGuidance: snapshot?.config?.guidance,
         contextEnhanced,
+        emptyAnswerMode: this.#harness?.currentEmptyAnswerMode?.(),
         createOptions: this.#signal ? { signal: this.#signal } : undefined,
         existsOptions: this.#signal ? { signal: this.#signal } : undefined,
         askOptions: {
@@ -1420,6 +1421,12 @@ export class TextHarnessBridge {
         } catch (error) {
           this.#logger.warn?.(`[dsh-im:${this.#descriptor.key}] context consumption marking failed:`, error?.message ?? error);
         }
+      }
+      // A turn that produced no text and no files ends here: dropping the
+      // placeholder is the whole answer, which is what `silent` asks for.
+      if (!cleanText(answer) && artifacts.length === 0) {
+        stream?.cancel?.();
+        return;
       }
       const fileOnlyCompletion = !cleanText(answer) && artifacts.length > 0;
       const visibleAnswer = fileOnlyCompletion

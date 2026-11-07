@@ -106,6 +106,7 @@ export async function askInWorkspaceSession({
   askOptions,
   deferredDelivery,
   onNotice,
+  emptyAnswerMode,
 }) {
   const initialTitle = contextEnhanced
     ? initialSessionTitle({
@@ -205,6 +206,8 @@ export async function askInWorkspaceSession({
       // The guidance the channel's captured settings applied, carried out of
       // band so the Host never has to read configuration out of the prompt.
       artifactOptions.sourceGuidance = sourceGuidance;
+      // Whether a turn that ends without text gets a notice or stays quiet.
+      if (emptyAnswerMode !== undefined) artifactOptions.emptyAnswerMode = emptyAnswerMode;
       artifactOptions.onArtifact = async (artifact) => {
         artifacts.push(artifact);
         await originalOnArtifact?.(artifact);

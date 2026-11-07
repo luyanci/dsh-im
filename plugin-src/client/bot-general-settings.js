@@ -1,6 +1,10 @@
 import * as React from 'react';
 import { h } from './i18n.js';
 import { SET_MESSAGE_MODE_ENDPOINT, normalizeBusyMessageMode } from '../../src/channels/shared/message-mode.mjs';
+import {
+  SET_EMPTY_ANSWER_MODE_ENDPOINT,
+  normalizeEmptyAnswerMode,
+} from '../../src/channels/shared/empty-answer.mjs';
 import { normalizeFeishuStepCardPanels } from '../../src/channels/feishu/step-push-mode.mjs';
 import { FEISHU_ENDPOINTS } from './channels/feishu/api.js';
 
@@ -10,6 +14,7 @@ function settingsFromResult(result, botId) {
   if (!bot) throw new Error('找不到要修改的机器人。');
   return {
     busyMessageMode: normalizeBusyMessageMode(bot.busyMessageMode),
+    emptyAnswerMode: normalizeEmptyAnswerMode(bot.emptyAnswerMode),
     stepCardPanels: normalizeFeishuStepCardPanels(bot.stepCardPanels),
   };
 }
@@ -17,7 +22,9 @@ function settingsFromResult(result, botId) {
 export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
   const modeId = React.useId();
   const [settings, setSettings] = React.useState(() => ({
-    busyMessageMode: 'queue', stepCardPanels: normalizeFeishuStepCardPanels(),
+    busyMessageMode: 'queue',
+    emptyAnswerMode: 'notice',
+    stepCardPanels: normalizeFeishuStepCardPanels(),
   }));
   const [savedSettings, setSavedSettings] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
@@ -57,7 +64,9 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
     setBusy(true);
     setFeedback(null);
     try {
-      const endpoint = field === 'stepCardPanels' ? FEISHU_ENDPOINTS.setStepCardPanels : SET_MESSAGE_MODE_ENDPOINT;
+      const endpoint = field === 'stepCardPanels'
+        ? FEISHU_ENDPOINTS.setStepCardPanels
+        : field === 'emptyAnswerMode' ? SET_EMPTY_ANSWER_MODE_ENDPOINT : SET_MESSAGE_MODE_ENDPOINT;
       const saved = settingsFromResult(await rpcCall(endpoint, {
         botId: account.botId, [field]: value,
       }), account.botId);
@@ -94,6 +103,24 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
           h('option', { value: 'steer' }, '插话')),
           h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
             h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })))),
+      h('div', { className: 'dim-botGeneralRow' },
+        h('div', { className: 'dim-botGeneralText' },
+          h('label', { className: 'dim-botGeneralTitle', htmlFor: `${modeId}-empty-answer` }, '空白输出'),
+          h('p', { className: 'dim-botGeneralHelp', id: `${modeId}-empty-answer-description` },
+            settings.emptyAnswerMode === 'silent'
+              ? '任务结束但没有任何文本时保持安静'
+              : '任务结束但没有任何文本时发一句提示')),
+        h('div', { className: 'dim-botGeneralControl' },
+          h('select', {
+            id: `${modeId}-empty-answer`,
+            value: settings.emptyAnswerMode,
+            disabled: busy || savedSettings === null,
+            'aria-label': '空白输出',
+            'aria-describedby': `${modeId}-empty-answer-description`,
+            onChange: (event) => void save('emptyAnswerMode', event.target.value),
+          },
+          h('option', { value: 'notice' }, '发一句提示'),
+          h('option', { value: 'silent' }, '静默')))),
       channel === 'feishu' ? [
         ['thinkingExpanded', '展开思考过程'],
         ['toolsExpanded', '展开工具摘要'],

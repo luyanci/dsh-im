@@ -2,6 +2,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ensurePresetWorkspace } from './preset-workspaces.mjs';
 import { t } from './i18n.mjs';
 import { normalizeBusyMessageMode, validateBusyMessageMode } from './message-mode.mjs';
+import {
+  DEFAULT_EMPTY_ANSWER_MODE,
+  isStoredEmptyAnswerMode,
+  normalizeEmptyAnswerMode,
+  validateEmptyAnswerMode,
+} from './empty-answer.mjs';
 import { atConnectionStage, connectionStageError, extractConnectionEvidence } from './connection-error.mjs';
 import { validateBotAlias, withBotAlias } from './bot-alias.mjs';
 import { defaultImWorkspace, ensureImWorkspaceDirectory, sameWorkspacePath } from './default-workspace.mjs';
@@ -385,6 +391,13 @@ function normalizeDocument(value) {
       if (Object.hasOwn(workspaces, id) && mode === 'steer') busyMessageModes[id] = mode;
     }
   }
+  const emptyAnswerModes = Object.create(null);
+  if (value.emptyAnswerModes && typeof value.emptyAnswerModes === 'object'
+    && !Array.isArray(value.emptyAnswerModes)) {
+    for (const [id, mode] of Object.entries(value.emptyAnswerModes)) {
+      if (Object.hasOwn(workspaces, id) && isStoredEmptyAnswerMode(mode)) emptyAnswerModes[id] = mode;
+    }
+  }
   const accessPolicies = normalizeAccessPolicies(value.accessPolicies, workspaces);
   const conversationDirectory = normalizeConversationDirectory(value.conversationDirectory);
   const conversationDirectories = normalizeConversationDirectoryOverrides(value.conversationDirectories);
@@ -410,6 +423,7 @@ function normalizeDocument(value) {
     accessPolicies,
     aliases,
     busyMessageModes,
+    emptyAnswerModes,
   };
 }
 
@@ -428,6 +442,7 @@ function storedDocument({
   accessPolicies,
   aliases,
   busyMessageModes,
+  emptyAnswerModes,
 }) {
   const document = { version, workspaces };
   if (conversationDirectory) document.conversationDirectory = conversationDirectory;
@@ -435,6 +450,7 @@ function storedDocument({
   if (Object.keys(sessionDirectories).length) document.sessionDirectories = sessionDirectories;
   if (Object.keys(dsBotBindings).length > 0) document.dsBotBindings = dsBotBindings;
   if (Object.keys(busyMessageModes).length > 0) document.busyMessageModes = busyMessageModes;
+  if (Object.keys(emptyAnswerModes).length > 0) document.emptyAnswerModes = emptyAnswerModes;
   if (Object.keys(aliases).length > 0) document.aliases = aliases;
   if (Object.keys(conversationWorkspaces).length > 0) {
     document.conversationWorkspaces = conversationWorkspaces;
@@ -498,6 +514,7 @@ export class BotWorkspaceStore {
   #models = {};
   #aliases = Object.create(null);
   #busyMessageModes = Object.create(null);
+  #emptyAnswerModes = Object.create(null);
   #contextEnhancement = {};
   #deliveryTargets = Object.create(null);
   #dsBotBindings = Object.create(null);
@@ -535,6 +552,7 @@ export class BotWorkspaceStore {
       this.#models = normalized.models;
       this.#aliases = normalized.aliases;
       this.#busyMessageModes = normalized.busyMessageModes;
+      this.#emptyAnswerModes = normalized.emptyAnswerModes;
       this.#contextEnhancement = normalized.contextEnhancement;
       this.#deliveryTargets = normalized.deliveryTargets;
       this.#dsBotBindings = normalized.dsBotBindings;
@@ -551,6 +569,7 @@ export class BotWorkspaceStore {
       this.#models = {};
       this.#aliases = Object.create(null);
       this.#busyMessageModes = Object.create(null);
+      this.#emptyAnswerModes = Object.create(null);
       this.#contextEnhancement = {};
       this.#deliveryTargets = Object.create(null);
       this.#dsBotBindings = Object.create(null);
@@ -745,6 +764,13 @@ export class BotWorkspaceStore {
   busyMessageModeFor(botId) {
     const id = botIdOf(botId);
     return normalizeBusyMessageMode(this.has(id) ? this.#busyMessageModes[id] : undefined);
+  }
+
+  emptyAnswerModeFor(botId) {
+    const id = botIdOf(botId);
+    return this.has(id)
+      ? normalizeEmptyAnswerMode(this.#emptyAnswerModes[id])
+      : DEFAULT_EMPTY_ANSWER_MODE;
   }
 
   contextEnhancementFor(botId) {
@@ -1184,6 +1210,27 @@ export class BotWorkspaceStore {
     });
   }
 
+  async setEmptyAnswerMode(botId, value, { incarnation } = {}) {
+    const id = botIdOf(botId);
+    const expectedIncarnation = incarnation === undefined ? this.incarnationFor(id) : incarnation;
+    const mode = validateEmptyAnswerMode(value);
+    return this.#enqueue(id, async () => {
+      if (!this.has(id) || expectedIncarnation !== this.incarnationFor(id)) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const next = { ...this.#emptyAnswerModes };
+      if (isStoredEmptyAnswerMode(mode)) next[id] = mode;
+      else delete next[id];
+      await this.#persist(this.#contextEnhancement, this.#deliveryTargets,
+        this.#version, this.#accessPolicies, this.#aliases, this.#conversationWorkspaces,
+        this.#busyMessageModes, undefined, undefined, undefined, undefined, next);
+      this.#emptyAnswerModes = next;
+      return mode;
+    });
+  }
+
   async setContextEnhancement(botId, value, { incarnation } = {}) {
     const id = botIdOf(botId);
     const expectedIncarnation = incarnation === undefined ? this.incarnationFor(id) : incarnation;
@@ -1567,6 +1614,7 @@ export class BotWorkspaceStore {
       ...Object.keys(this.#models),
       ...Object.keys(this.#aliases),
       ...Object.keys(this.#busyMessageModes),
+      ...Object.keys(this.#emptyAnswerModes),
       ...Object.keys(this.#contextEnhancement),
       ...Object.keys(this.#deliveryTargets),
       ...Object.keys(this.#accessPolicies),
@@ -1596,6 +1644,7 @@ export class BotWorkspaceStore {
           model: this.modelFor(bot.botId),
           contextEnhancement: this.contextEnhancementFor(bot.botId),
           busyMessageMode: this.busyMessageModeFor(bot.botId),
+          emptyAnswerMode: this.emptyAnswerModeFor(bot.botId),
           accessPolicy: this.accessPolicyFor(bot.botId),
         }
         : bot),
@@ -1635,6 +1684,7 @@ export class BotWorkspaceStore {
     const hadModel = Object.hasOwn(this.#models, id);
     const hadAlias = Object.hasOwn(this.#aliases, id);
     const hadMessageMode = Object.hasOwn(this.#busyMessageModes, id);
+    const hadEmptyAnswerMode = Object.hasOwn(this.#emptyAnswerModes, id);
     const hadContextEnhancement = Object.hasOwn(this.#contextEnhancement, id);
     const hadDeliveryTargets = Object.hasOwn(this.#deliveryTargets, id);
     const hadDsBotBindings = Object.hasOwn(this.#dsBotBindings, id);
@@ -1643,6 +1693,7 @@ export class BotWorkspaceStore {
     const hadDirectoryRecords = Object.hasOwn(this.#conversationDirectories, id) || Object.hasOwn(this.#sessionDirectories, id);
     const needsCleanup = hadWorkspace || hadPreset || hadModel || hadAlias || hadContextEnhancement
       || hadDeliveryTargets || hadDsBotBindings || hadAccessPolicy || hadConversationWorkspaces || hadMessageMode
+      || hadEmptyAnswerMode
       || hadDirectoryRecords
       || this.#dirtyRemovals.has(id);
     delete this.#workspaces[id];
@@ -1650,6 +1701,7 @@ export class BotWorkspaceStore {
     delete this.#models[id];
     delete this.#aliases[id];
     delete this.#busyMessageModes[id];
+    delete this.#emptyAnswerModes[id];
     delete this.#contextEnhancement[id];
     delete this.#deliveryTargets[id];
     delete this.#dsBotBindings[id];
@@ -1698,6 +1750,7 @@ export class BotWorkspaceStore {
     conversationDirectory = this.#conversationDirectory,
     conversationDirectories = this.#conversationDirectories,
     sessionDirectories = this.#sessionDirectories,
+    emptyAnswerModes = this.#emptyAnswerModes,
   ) {
     await writeStoredDocument(this.#path, storedDocument({
       version,
@@ -1711,6 +1764,7 @@ export class BotWorkspaceStore {
       accessPolicies,
       aliases,
       busyMessageModes,
+      emptyAnswerModes,
       conversationDirectory,
       conversationDirectories,
       sessionDirectories,
@@ -1724,6 +1778,7 @@ export class BotWorkspaceStore {
       || Object.keys(this.#models).length > 0
       || Object.keys(this.#aliases).length > 0
       || Object.keys(this.#busyMessageModes).length > 0
+      || Object.keys(this.#emptyAnswerModes).length > 0
       || Object.keys(this.#contextEnhancement).length > 0
       || Object.keys(this.#deliveryTargets).length > 0
       || Object.keys(this.#dsBotBindings).length > 0
@@ -2078,6 +2133,9 @@ export function createBotWorkspaceScope(
       }
       if (property === 'currentBusyMessageMode') {
         return () => isCurrentScope() ? workspaces.busyMessageModeFor(botId) : 'queue';
+      }
+      if (property === 'currentEmptyAnswerMode') {
+        return () => isCurrentScope() ? workspaces.emptyAnswerModeFor(botId) : DEFAULT_EMPTY_ANSWER_MODE;
       }
       if (property === 'currentWorkspace') {
         return () => {
@@ -2859,6 +2917,23 @@ export function createWorkspaceAwareController(controller, {
       );
     });
   };
+  const updateEmptyAnswerMode = (botId, value, projectStatus) => {
+    const incarnation = workspaces.incarnationFor(botId);
+    const emptyAnswerMode = validateEmptyAnswerMode(value);
+    return withBotTransition(botId, async () => {
+      const snapshot = await decorate(await controller.status());
+      if (!snapshot?.bots?.some((bot) => bot?.botId === botId)) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const updated = { ...snapshot, bots: snapshot.bots.map((bot) => bot.botId === botId
+        ? { ...bot, emptyAnswerMode } : bot) };
+      const result = projectStatus ? await projectStatus(updated) : updated;
+      await workspaces.setEmptyAnswerMode(botId, emptyAnswerMode, { incarnation });
+      return result;
+    });
+  };
   const updateAlias = (botId, value, projectStatus) => {
     const incarnation = workspaces.incarnationFor(botId);
     const alias = validateBotAlias(value);
@@ -3021,6 +3096,7 @@ export function createWorkspaceAwareController(controller, {
       if (property === 'updateModel') return updateModel;
       if (property === 'updateAlias') return updateAlias;
       if (property === 'updateBusyMessageMode') return updateBusyMessageMode;
+      if (property === 'updateEmptyAnswerMode') return updateEmptyAnswerMode;
       if (property === 'updateContextEnhancement') return updateContextEnhancement;
       if (property === 'updateAccessPolicy') return updateAccessPolicy;
       const value = Reflect.get(target, property, target);
