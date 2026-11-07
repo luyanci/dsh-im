@@ -19,6 +19,25 @@ forward instead of treating a prerelease suffix as older.
 
 ## [UNRELEASED]
 
+### Added / 新增
+
+- OneBot 渠道新增「机器人群聊行为」设置（每个账号一个独立页签，入口和 Telegram 对齐）：每个群可以单独设
+  `不响应` / `被 @ 或回复时` / `所有消息`，并可限定只在名单成员发言时响应；规则与 Telegram 共用同一个规范化器，
+  缺省 `mention`，所以老配置升级后行为不变。群列表直接问协议端（`get_group_list`），未连接时可手填群号；
+  保存后只重启该账号。设计见 `docs/onebot-group-behavior.md`。（`1bc47cc3`）
+  The OneBot channel now has a 「机器人群聊行为」 page per account, mirroring Telegram: each group can be set to
+  `off` / `mention` / `all`, optionally limited to listed member ids. The rules reuse Telegram's normalizer, default
+  to `mention`, so existing configs behave the same. The group list comes from the protocol end (`get_group_list`,
+  manual id entry when disconnected) and saving restarts only that account. Design: `docs/onebot-group-behavior.md`.
+  (`1bc47cc3`)
+- 每个 bot 的「通用」页签新增「空白输出」：回合正常结束但没有任何文本时，默认发一句「本轮处理已结束，没有文本回复。」，
+  也可以选静默（只把进度气泡收掉，不发言）。开关存在共享的每-bot 设置文档里，默认 `notice`，老配置行为不变；
+  有附件没正文时的「任务已完成。」不受影响。（`eba4e794`）
+  Every bot's 「通用」 tab now has an 「空白输出」 choice: when a turn ends successfully with no text, the bot either
+  says 「本轮处理已结束，没有文本回复。」 (default) or stays silent, dropping only the progress bubble. The switch
+  lives in the shared per-bot settings document, defaults to `notice`, so existing bots behave exactly as before; the
+  「任务已完成。」 notice for a file-only turn is unchanged. (`eba4e794`)
+
 ### Fixed / 修复
 
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
@@ -47,55 +66,48 @@ forward instead of treating a prerelease suffix as older.
   入站文件管线按需取回并落盘；此前引用只带一个附件名，所以「这张图里是什么？」永远答不上来。
   引用贴纸取原始 webp、动画/视频贴纸取首帧缩略图；文件大小上限沿用入站文件管线的 `maxBytes`。
   被引用文件超过 **4 MiB** 时只保留附件名、不预先下载：引用媒体是在回合开始前取回的，大文件会拖慢回答。
+  （`1cffad68`、`3bad8bac`）
   Quoted photos, documents, stickers, voice notes and videos on Telegram now carry a lazy `files` source, so the
   inbound-file pipeline can fetch the quoted bytes on demand. Before this, a quote only held an attachment name and
   "what is in this picture?" could not be answered. Stickers quote their webp (or the thumbnail for animated/video
   stickers), and the inbound `maxBytes` limit still applies. A quoted file above **4 MiB** keeps only its name: the
-  bytes are fetched before the turn starts, so a heavy quote would delay the answer.
+  bytes are fetched before the turn starts, so a heavy quote would delay the answer. (`1cffad68`, `3bad8bac`)
 - Telegram 引用一条机器人自己发过的消息时，直接从那 64 条「最近发出的答案」缓存里取原文，不再去翻会话历史；
-  真的需要回查历史时超时从 5 秒降到 2 秒，捞不到就标 `not-delivered`，不让读者干等。
+  真的需要回查历史时超时从 5 秒降到 2 秒，捞不到就标 `not-delivered`，不让读者干等。（`b645f50c`）
   Quoting a message the bot sent resolves from a 64-entry cache of recently sent answers instead of paging the
   session transcript; when the transcript really is needed the timeout drops from five seconds to two, and an
-  unrecoverable quote reports `not-delivered` instead of stalling the answer.
+  unrecoverable quote reports `not-delivered` instead of stalling the answer. (`b645f50c`)
 - Telegram 的 `text_link` / `text_mention` 实体不再被丢掉：隐藏链接会还原成 `[文字](地址)`，被 @ 的人还原成
   `[名字](tg://user?id=…)`，`code` / `pre` 也还原成行内代码和代码块；普通消息和被引用的消息都走同一套渲染。
-  在此之前，`对方发出了一个神秘链接` 这种只能看到标签、看不到它指向哪里。
+  在此之前，`对方发出了一个神秘链接` 这种只能看到标签、看不到它指向哪里。（`73d035ca`）
   Telegram `text_link` and `text_mention` entities are no longer dropped: a hidden link becomes `[label](url)`, a
   mentioned user becomes `[name](tg://user?id=…)`, and `code` / `pre` become inline and fenced code. The same
   rendering applies to a plain message and to a quoted one; before this the prompt saw the label but not the target.
+  (`73d035ca`)
 - 出站 `.gif` 现在走 `sendAnimation` 发成会动的动图。之前它落进 `sendPhoto`，Telegram 只会取第一帧，
-  所以发出去是一张静止图；`image/gif` 也不再被并进相册（相册只有静态图）。
+  所以发出去是一张静止图；`image/gif` 也不再被并进相册（相册只有静态图）。（`1be074ec`）
   Outbound `.gif` now goes through `sendAnimation`. It used to fall into `sendPhoto`, where Telegram keeps only the
   first frame, so the reader got a still picture; `image/gif` is also excluded from photo albums for the same reason.
-- OneBot 渠道新增「机器人群聊行为」设置（每个账号一个独立页签，入口和 Telegram 对齐）：每个群可以单独设
-  `不响应` / `被 @ 或回复时` / `所有消息`，并可限定只在名单成员发言时响应；规则与 Telegram 共用同一个规范化器，
-  缺省 `mention`，所以老配置升级后行为不变。群列表直接问协议端（`get_group_list`），未连接时可手填群号；
-  保存后只重启该账号。设计见 `docs/onebot-group-behavior.md`。
-  The OneBot channel now has a 「机器人群聊行为」 page per account, mirroring Telegram: each group can be set to
-  `off` / `mention` / `all`, optionally limited to listed member ids. The rules reuse Telegram's normalizer, default
-  to `mention`, so existing configs behave the same. The group list comes from the protocol end (`get_group_list`,
-  manual id entry when disconnected) and saving restarts only that account. Design: `docs/onebot-group-behavior.md`.
-- 每个 bot 的「通用」页签新增「空白输出」：回合正常结束但没有任何文本时，默认发一句「本轮处理已结束，没有文本回复。」，
-  也可以选静默（只把进度气泡收掉，不发言）。开关存在共享的每-bot 设置文档里，默认 `notice`，老配置行为不变；
-  有附件没正文时的「任务已完成。」不受影响。
-  Every bot's 「通用」 tab now has an 「空白输出」 choice: when a turn ends successfully with no text, the bot either
-  says 「本轮处理已结束，没有文本回复。」 (default) or stays silent, dropping only the progress bubble. The switch
-  lives in the shared per-bot settings document, defaults to `notice`, so existing bots behave exactly as before; the
-  「任务已完成。」 notice for a file-only turn is unchanged.
+  (`1be074ec`)
+- 「空白输出」选静默时，Telegram 会把「正在处理…」占位消息**删掉**再结束回合，不再留一个转圈气泡；
+  实现上给流加了 `discard()`（没实现该方法的渠道退回原来的 `cancel()`）。OneBot 本来就不发占位，无需处理。（`071ccdbe`）
+  In silent empty-answer mode Telegram now deletes the 「正在处理…」 placeholder before ending the turn instead of
+  leaving a spinning bubble behind. The stream gained a `discard()`; channels without it keep the old `cancel()`
+  fallback. OneBot never creates a placeholder, so nothing changes there. (`071ccdbe`)
+
+### Changed / 变更
+
 - OneBot 的管理端点表改成**组合共享表**（与 Telegram 同构）：`ONEBOT_ENDPOINTS` 现在展开
   `TOKEN_BOT_ENDPOINTS`，只有 add-bot、监听设置、群聊规则这些专属端点自己处理，其余交给共享处理器。
   之前逐条重抄共享端点，`bot.empty-answer.set` 因此只在 Telegram 可用、QQ 侧报「Unknown OneBot endpoint」；
   以后共享层新增设置项 OneBot 自动继承。专属端点（重启带 `sendTest`、无凭据绑定）行为与错误文案不变。
+  共享处理器接的是 Proxy 适配器（类实例的方法在原型上，对象展开会全丢）。（`d7f3f80f`、`2f82212f`）
   OneBot's management table now composes the shared one, exactly like Telegram: `ONEBOT_ENDPOINTS` spreads
   `TOKEN_BOT_ENDPOINTS` and only add-bot, listener settings and group rules are handled locally. Re-listing every
   shared endpoint is why `bot.empty-answer.set` worked on Telegram but answered "Unknown OneBot endpoint" on QQ;
   new shared settings are now inherited automatically. The OneBot-only calls (restart with `sendTest`, no credential
-  binding) keep their behaviour and error text.
-- 「空白输出」选静默时，Telegram 会把「正在处理…」占位消息**删掉**再结束回合，不再留一个转圈气泡；
-  实现上给流加了 `discard()`（没实现该方法的渠道退回原来的 `cancel()`）。OneBot 本来就不发占位，无需处理。
-  In silent empty-answer mode Telegram now deletes the 「正在处理…」 placeholder before ending the turn instead of
-  leaving a spinning bubble behind. The stream gained a `discard()`; channels without it keep the old `cancel()`
-  fallback. OneBot never creates a placeholder, so nothing changes there.
+  binding) keep their behaviour and error text. The shared handler is reached through a Proxy adapter, because the
+  real controller keeps its methods on the prototype and an object spread dropped all of them. (`d7f3f80f`, `2f82212f`)
 
 ## [5.11.2] - 2026-11-06
 
