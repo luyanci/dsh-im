@@ -208,6 +208,27 @@ test('shared settings endpoints are inherited, so new ones work without a OneBot
   assert.equal(invalid.error.code, 'bad-request');
 });
 
+test('the shared adapter works with a class controller whose methods live on the prototype', async () => {
+  // The real controller is a class instance, not a plain object: an object spread
+  // dropped every prototype method, the shared handler refused to construct, and
+  // the settings page showed the generic failure card with no reason.
+  const calls = [];
+  class ClassController {
+    status() { return { bots: [{ botId: 'onebot_abc' }] }; }
+    restartBot(botId) { calls.push(['restart', botId]); return this.status(); }
+    deleteBot(botId) { calls.push(['delete', botId]); return this.status(); }
+    updateEmptyAnswerMode(botId, mode) { calls.push(['empty', botId, mode]); return this.status(); }
+  }
+  const handler = createOneBotRpcHandler(new ClassController());
+
+  const saved = await handler('bot.empty-answer.set', {
+    botId: 'onebot_abc',
+    emptyAnswerMode: 'silent',
+  });
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls, [['empty', 'onebot_abc', 'silent']]);
+});
+
 test('an unknown endpoint and a controller failure both fail closed', async () => {
   const handler = createOneBotRpcHandler(fakeController());
   const unknown = await handler('onebot.nope', {});

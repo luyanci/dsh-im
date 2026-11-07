@@ -163,16 +163,30 @@ export function createOneBotRpcHandler(controller) {
   // credential binding at all. The adapter exists just to satisfy the contract,
   // and it is built lazily so a caller that only touches OneBot's own endpoints
   // does not need the whole lifecycle surface.
+  //
+  // It must be a Proxy: the real controller is a class instance whose methods live
+  // on the prototype, and spreading it into a plain object silently dropped every
+  // one of them — the shared handler then refused to construct and the settings
+  // page showed the generic "operation failed" card with no reason.
   let sharedHandler = null;
   const shared = (endpoint, payload) => {
-    sharedHandler ??= createTokenBotRpcHandler({
-      ...controller,
-      bindCredentials: () => {
-        throw new Error('OneBot 不需要绑定凭据。');
+    sharedHandler ??= createTokenBotRpcHandler(new Proxy(controller, {
+      get(target, key) {
+        if (key === 'bindCredentials') {
+          return () => {
+            throw new Error('OneBot 不需要绑定凭据。');
+          };
+        }
+        if (key === 'reconnectBot') {
+          return (botId) => target.restartBot(botId);
+        }
+        if (key === 'deleteBot') {
+          return (botId) => target.deleteBot(botId, { confirm: true });
+        }
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
       },
-      reconnectBot: (botId) => controller.restartBot(botId),
-      deleteBot: (botId) => controller.deleteBot(botId, { confirm: true }),
-    }, { channel: 'OneBot' });
+    }), { channel: 'OneBot' });
     return sharedHandler(endpoint, payload);
   };
 
