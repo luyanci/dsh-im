@@ -57,6 +57,12 @@ forward instead of treating a prerelease suffix as older.
   Quoting a message the bot sent resolves from a 64-entry cache of recently sent answers instead of paging the
   session transcript; when the transcript really is needed the timeout drops from five seconds to two, and an
   unrecoverable quote reports `not-delivered` instead of stalling the answer.
+- Telegram 的 `text_link` / `text_mention` 实体不再被丢掉：隐藏链接会还原成 `[文字](地址)`，被 @ 的人还原成
+  `[名字](tg://user?id=…)`，`code` / `pre` 也还原成行内代码和代码块；普通消息和被引用的消息都走同一套渲染。
+  在此之前，`对方发出了一个神秘链接` 这种只能看到标签、看不到它指向哪里。
+  Telegram `text_link` and `text_mention` entities are no longer dropped: a hidden link becomes `[label](url)`, a
+  mentioned user becomes `[name](tg://user?id=…)`, and `code` / `pre` become inline and fenced code. The same
+  rendering applies to a plain message and to a quoted one; before this the prompt saw the label but not the target.
 
 ## [5.11.2] - 2026-11-06
 

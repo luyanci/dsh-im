@@ -123,6 +123,45 @@ function isUsernameBoundary(character) {
   return character === undefined || !(/[a-z0-9_]/i).test(character);
 }
 
+/**
+ * Telegram hides a link's target in `entities` (`text_link`) and a person's id in
+ * `text_mention`; the plain text only carries the label. Rendering those back into
+ * markdown is the difference between "对方发出了一个神秘链接" and knowing where it
+ * points, and it costs one string walk.
+ *
+ * Offsets are UTF-16 code units, which is what `String.prototype.slice` uses, so
+ * no conversion is needed — but entities are applied from the end so an earlier
+ * replacement cannot shift a later offset.
+ */
+const ENTITY_MARKERS = {
+  text_link: (inner, entity) => (
+    typeof entity.url === 'string' && entity.url ? `[${inner}](${entity.url})` : inner
+  ),
+  text_mention: (inner, entity) => (Number.isSafeInteger(entity.user?.id)
+    ? `[${inner}](tg://user?id=${entity.user.id})` : inner),
+  code: (inner) => (inner.includes('`') ? inner : `\`${inner}\``),
+  pre: (inner) => (inner.includes('```') ? inner : `\`\`\`\n${inner}\n\`\`\``),
+};
+
+export function telegramTextWithEntities(text, entities) {
+  if (typeof text !== 'string' || !text) return text;
+  if (!Array.isArray(entities) || entities.length === 0) return text;
+  const usable = entities
+    .filter((entity) => ENTITY_MARKERS[entity?.type]
+      && Number.isInteger(entity.offset) && Number.isInteger(entity.length) && entity.length > 0)
+    .map((entity) => ({ entity, offset: entity.offset, end: entity.offset + entity.length }))
+    .filter(({ offset, end }) => offset >= 0 && end <= text.length)
+    // Right to left, and for a shared offset the inner (shorter) entity first.
+    .sort((left, right) => (right.offset - left.offset) || (left.end - right.end));
+  let result = text;
+  for (const { entity, offset, end } of usable) {
+    result = result.slice(0, offset)
+      + ENTITY_MARKERS[entity.type](result.slice(offset, end), entity)
+      + result.slice(end);
+  }
+  return result;
+}
+
 function withoutBotMention(text, username) {
   if (!username || typeof text !== 'string') return text;
   const target = `@${username}`.toLowerCase();
@@ -477,9 +516,13 @@ function telegramReplyReference(message, { quote, loadReplyContent, loadFile } =
       typeof message?.from?.username === 'string' && message.from.username
         ? message.from.username : undefined
     );
+  // A quoted message can hide its link target in `entities` too, so the same
+  // rendering applies before the content reaches the prompt.
   const content = typeof message?.text === 'string'
-    ? message.text : typeof message?.caption === 'string'
-      ? message.caption : typeof quote?.text === 'string' ? quote.text : '';
+    ? telegramTextWithEntities(message.text, message.entities)
+    : typeof message?.caption === 'string'
+      ? telegramTextWithEntities(message.caption, message.caption_entities)
+      : typeof quote?.text === 'string' ? quote.text : '';
   const attachments = telegramReplyAttachments(message);
   const files = telegramReplyFiles(message, loadFile);
   const messageId = Number.isSafeInteger(message?.message_id)
@@ -716,7 +759,13 @@ export function normalizeTelegramUpdate(update, {
     kind: direct ? 'direct' : 'group',
     conversationId,
     content: withForwardPrefix(
-      withoutBotMention(message.text ?? message.caption ?? '', username)
+      withoutBotMention(
+        telegramTextWithEntities(
+          typeof message.text === 'string' ? message.text : message.caption ?? '',
+          typeof message.text === 'string' ? message.entities : message.caption_entities,
+        ) ?? '',
+        username,
+      )
         || (sticker && message.sticker?.emoji ? `[${t('贴纸')} ${message.sticker.emoji}]` : '')
         || (sticker ? `[${t('贴纸')}]` : ''),
       message,

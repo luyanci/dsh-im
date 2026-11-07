@@ -37,6 +37,7 @@ import {
   telegramCommandMenu,
   telegramCommandMenuScopes,
   telegramInboundAllowed,
+  telegramTextWithEntities,
 } from '../../../src/channels/telegram/telegram-runtime.mjs';
 import { TelegramStateStore } from '../../../src/channels/telegram/state-store.mjs';
 import {
@@ -1332,6 +1333,55 @@ test('a quoted photo downloads through the injected loader only when asked', asy
   const bytes = await quoted.replyTo.files[0].load({ maxBytes: 1024 });
   assert.deepEqual([...bytes], [9, 9, 9]);
   assert.deepEqual(requests, [{ fileId: 'photo-large', hasSignal: false, maxBytes: 1024 }]);
+});
+
+test('a text_link entity keeps its target for the message and for a quote of it', () => {
+  // Telegram puts the target of a "secret link" in entities, not in the text, so
+  // the prompt used to see only the label.
+  const message = normalizeTelegramUpdate({
+    update_id: 21,
+    message: {
+      message_id: 30,
+      chat: { id: -100, type: 'supergroup' },
+      from: { id: 42, is_bot: false, first_name: 'A' },
+      text: '对方发出了一个神秘链接',
+      entities: [{ type: 'text_link', offset: 5, length: 5, url: 'https://example.org/secret' }],
+    },
+  }, { botId: '123456789', username: 'HarnessBot' });
+  assert.equal(message.content, '对方发出了[一个神秘链](https://example.org/secret)接');
+
+  const quoted = normalizeTelegramUpdate({
+    update_id: 22,
+    message: {
+      message_id: 31,
+      chat: { id: -100, type: 'supergroup' },
+      from: { id: 42, is_bot: false, first_name: 'A' },
+      text: '这个安全吗？',
+      reply_to_message: {
+        message_id: 30,
+        from: { id: 41, first_name: 'B' },
+        text: '对方发出了一个神秘链接',
+        entities: [{ type: 'text_link', offset: 5, length: 5, url: 'https://example.org/secret' }],
+      },
+    },
+  }, { botId: '123456789', username: 'HarnessBot' });
+  assert.equal(quoted.replyTo.content, '对方发出了[一个神秘链](https://example.org/secret)接');
+});
+
+test('entity rendering leaves a code block and a text_mention readable', () => {
+  assert.equal(
+    telegramTextWithEntities('看这里', [{ type: 'code', offset: 1, length: 2 }]),
+    '看`这里`',
+  );
+  assert.equal(
+    telegramTextWithEntities('问 阿甲 一下', [{ type: 'text_mention', offset: 2, length: 2, user: { id: 777 } }]),
+    '问 [阿甲](tg://user?id=777) 一下',
+  );
+  // An entity that falls outside the text is ignored instead of corrupting it.
+  assert.equal(
+    telegramTextWithEntities('短', [{ type: 'text_link', offset: 3, length: 2, url: 'https://x.test' }]),
+    '短',
+  );
 });
 
 test('an answer the bot sent is recalled for a quote instead of paging the transcript', () => {
