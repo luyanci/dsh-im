@@ -91,6 +91,11 @@ forward instead of treating a prerelease suffix as older.
   shared endpoint is why `bot.empty-answer.set` worked on Telegram but answered "Unknown OneBot endpoint" on QQ;
   new shared settings are now inherited automatically. The OneBot-only calls (restart with `sendTest`, no credential
   binding) keep their behaviour and error text.
+- 「空白输出」选静默时，Telegram 会把「正在处理…」占位消息**删掉**再结束回合，不再留一个转圈气泡；
+  实现上给流加了 `discard()`（没实现该方法的渠道退回原来的 `cancel()`）。OneBot 本来就不发占位，无需处理。
+  In silent empty-answer mode Telegram now deletes the 「正在处理…」 placeholder before ending the turn instead of
+  leaving a spinning bubble behind. The stream gained a `discard()`; channels without it keep the old `cancel()`
+  fallback. OneBot never creates a placeholder, so nothing changes there.
 
 ## [5.11.2] - 2026-11-06
 

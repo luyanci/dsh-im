@@ -1427,7 +1427,15 @@ export class TextHarnessBridge {
       // what `silent` means. Any other empty answer keeps the previous handling.
       if (!cleanText(answer) && artifacts.length === 0
         && this.#harness?.currentEmptyAnswerMode?.() === 'silent') {
-        stream?.cancel?.();
+        try {
+          if (typeof stream?.discard === 'function') await stream.discard();
+          else stream?.cancel?.();
+        } catch (error) {
+          this.#logger.warn?.(
+            `[dsh-im:${this.#descriptor.key}] removing the silent turn's placeholder failed:`,
+            error?.message ?? error,
+          );
+        }
         return;
       }
       const fileOnlyCompletion = !cleanText(answer) && artifacts.length > 0;

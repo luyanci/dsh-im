@@ -875,6 +875,7 @@ class TelegramDeliveryStream {
   #finish;
   #fail;
   #onCancel;
+  #onDiscard = null;
   #logger;
   #providerMessageIds;
   #closed = false;
@@ -891,6 +892,7 @@ class TelegramDeliveryStream {
     finish,
     fail,
     onCancel = null,
+    onDiscard = null,
     providerMessageIds = [],
     presentation,
     logger,
@@ -902,6 +904,7 @@ class TelegramDeliveryStream {
     this.#finish = finish;
     this.#fail = fail;
     this.#onCancel = onCancel;
+    this.#onDiscard = onDiscard;
     this.#providerMessageIds = providerMessageIds;
     this.presentation = presentation;
     this.#logger = logger;
@@ -1015,6 +1018,20 @@ class TelegramDeliveryStream {
     // Carrier-specific teardown (a paced progress window still holding a frame
     // and its timer) lives with whoever opened the stream.
     this.#onCancel?.();
+  }
+
+  /**
+   * End the turn without an answer: the carrier removes its own placeholder, so
+   * a silent turn leaves no "正在处理…" bubble behind.
+   */
+  discard() {
+    return this.#enqueue(async () => {
+      if (this.#closed) return undefined;
+      this.#closed = true;
+      this.#onCancel?.();
+      await this.#onDiscard?.();
+      return undefined;
+    });
   }
 }
 
@@ -1675,6 +1692,8 @@ export class TelegramBotClient {
         clearWindowTimer();
         held = null;
       },
+      // Silent turns delete the placeholder instead of leaving it behind.
+      onDiscard: () => this.#deletePlaceholder(target, messageId),
       presentation: 'telegram-regular',
       // The answer text is not mirrored into the placeholder while the turn is
       // running: the final edit writes it once, so live previews would only
