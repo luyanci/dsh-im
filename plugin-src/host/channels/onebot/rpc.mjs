@@ -17,6 +17,10 @@ import {
   validContextEnhancementPayload,
 } from '../shared/context-enhancement-rpc.mjs';
 import { SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload } from '../../../../src/channels/shared/message-mode.mjs';
+import {
+  SET_EMPTY_ANSWER_MODE_ENDPOINT,
+  validEmptyAnswerPayload,
+} from '../../../../src/channels/shared/empty-answer.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
 import { SET_ALIAS_ENDPOINT, validAliasPayload } from '../shared/bot-alias-rpc.mjs';
 import { validGroupTriggersConfig } from '../shared/group-triggers-rpc.mjs';
@@ -34,6 +38,7 @@ export const ONEBOT_ENDPOINTS = Object.freeze({
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
   setBusyMessageMode: SET_MESSAGE_MODE_ENDPOINT,
+  setEmptyAnswerMode: SET_EMPTY_ANSWER_MODE_ENDPOINT,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
   setAlias: SET_ALIAS_ENDPOINT,
   getGroupRules: 'onebot.group-rules.get',
@@ -102,6 +107,7 @@ const SHARED_ENDPOINTS = [
   [SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload, 'updateAgentPreset', (payload) => [payload.botId, payload.agentPreset]],
   [SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload, 'updateContextEnhancement', (payload) => [payload.botId, payload.config]],
   [SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload, 'updateBusyMessageMode', (payload) => [payload.botId, payload.busyMessageMode]],
+  [SET_EMPTY_ANSWER_MODE_ENDPOINT, validEmptyAnswerPayload, 'updateEmptyAnswerMode', (payload) => [payload.botId, payload.emptyAnswerMode]],
   [SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload, 'updateAccessPolicy', (payload) => [payload.botId, payload.policy]],
   [SET_ALIAS_ENDPOINT, validAliasPayload, 'updateAlias', (payload) => [payload.botId, payload.alias]],
 ];

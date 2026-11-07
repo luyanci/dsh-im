@@ -292,7 +292,7 @@ export function OneBotGroupRulesSettings({ account, rpcCall }) {
             }, [
               h('option', { key: '', value: '' }, '— 选择一个群 —'),
               ...pickable.map((group) => h('option', { key: group.groupId, value: group.groupId },
-                `${group.groupName ?? '未命名群'}（${group.groupId}）`)),
+                group.groupName ?? '未命名群', ` (${group.groupId})`)),
             ]))
         : h('p', { className: 'dim-channelHelp' },
             '读不到群列表（机器人可能未连接），可直接填写群号。'),

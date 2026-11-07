@@ -8,6 +8,9 @@ import {
 import { normalizeFeishuStepCardPanels } from '../../src/channels/feishu/step-push-mode.mjs';
 import { FEISHU_ENDPOINTS } from './channels/feishu/api.js';
 
+/** Channels whose RPC table registers `bot.empty-answer.set`. */
+const EMPTY_ANSWER_CHANNELS = new Set(['telegram', 'onebot']);
+
 function settingsFromResult(result, botId) {
   if (result?.ok !== true) throw new Error(result?.error?.message || '无法读取通用设置，请稍后重试。');
   const bot = result.value?.bots?.find((entry) => entry.botId === botId);
@@ -103,7 +106,9 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
           h('option', { value: 'steer' }, '插话')),
           h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
             h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })))),
-      h('div', { className: 'dim-botGeneralRow' },
+      // Only channels whose RPC table registers the endpoint offer this row;
+      // the others would answer "unknown endpoint" and look broken.
+      EMPTY_ANSWER_CHANNELS.has(channel) ? h('div', { className: 'dim-botGeneralRow' },
         h('div', { className: 'dim-botGeneralText' },
           h('label', { className: 'dim-botGeneralTitle', htmlFor: `${modeId}-empty-answer` }, '空白输出'),
           h('p', { className: 'dim-botGeneralHelp', id: `${modeId}-empty-answer-description` },
@@ -120,7 +125,7 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
             onChange: (event) => void save('emptyAnswerMode', event.target.value),
           },
           h('option', { value: 'notice' }, '发一句提示'),
-          h('option', { value: 'silent' }, '静默')))),
+          h('option', { value: 'silent' }, '静默')))) : null,
       channel === 'feishu' ? [
         ['thinkingExpanded', '展开思考过程'],
         ['toolsExpanded', '展开工具摘要'],
