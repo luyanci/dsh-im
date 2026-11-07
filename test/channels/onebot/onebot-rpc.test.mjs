@@ -180,6 +180,34 @@ test('group rules are read, listed and saved through the controller', async () =
   assert.equal(badSenders.error.code, 'bad-request');
 });
 
+test('shared settings endpoints are inherited, so new ones work without a OneBot row', async () => {
+  // `bot.empty-answer.set` reached Telegram for free and answered "Unknown OneBot
+  // endpoint" here, because this table used to re-list every shared endpoint.
+  const calls = [];
+  const handler = createOneBotRpcHandler({
+    ...fakeController(),
+    updateEmptyAnswerMode: async (botId, mode) => {
+      calls.push([botId, mode]);
+      return { bots: [{ botId, emptyAnswerMode: mode }] };
+    },
+  });
+
+  const saved = await handler('bot.empty-answer.set', {
+    botId: 'onebot_abc',
+    emptyAnswerMode: 'silent',
+  });
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls, [['onebot_abc', 'silent']]);
+  assert.equal(saved.value.bots[0].emptyAnswerMode, 'silent');
+
+  const invalid = await handler('bot.empty-answer.set', {
+    botId: 'onebot_abc',
+    emptyAnswerMode: 'loud',
+  });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.error.code, 'bad-request');
+});
+
 test('an unknown endpoint and a controller failure both fail closed', async () => {
   const handler = createOneBotRpcHandler(fakeController());
   const unknown = await handler('onebot.nope', {});

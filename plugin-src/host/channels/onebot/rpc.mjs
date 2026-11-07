@@ -1,46 +1,27 @@
 /**
  * Management RPC for the OneBot channel.
  *
- * The shared bot surface (workspace, model, access policy, and the rest) uses the
- * same endpoint names as every other channel, so the settings page behaves like
- * Telegram's; the two OneBot-specific calls carry the listener settings no other
- * channel has.
+ * OneBot adds its own calls (add-bot, listener settings, per-group rules) on top
+ * of the shared token-bot surface, exactly like Telegram composes the shared
+ * table. Everything shared is inherited rather than re-listed: re-listing is how
+ * `bot.empty-answer.set` once answered "Unknown OneBot endpoint" while Telegram
+ * had it for free.
  */
 import { registerManagementRpc } from '../../../management-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import { ONEBOT_IMAGE_FORMATS } from '../../../../src/channels/onebot/onebot-config-store.mjs';
-import { SET_WORKSPACE_ENDPOINT, publicWorkspaceError, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
-import { SET_MODEL_ENDPOINT, validModelPayload } from '../shared/model-setting-rpc.mjs';
-import { SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
-import {
-  SET_CONTEXT_ENHANCEMENT_ENDPOINT,
-  validContextEnhancementPayload,
-} from '../shared/context-enhancement-rpc.mjs';
-import { SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload } from '../../../../src/channels/shared/message-mode.mjs';
-import {
-  SET_EMPTY_ANSWER_MODE_ENDPOINT,
-  validEmptyAnswerPayload,
-} from '../../../../src/channels/shared/empty-answer.mjs';
-import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
-import { SET_ALIAS_ENDPOINT, validAliasPayload } from '../shared/bot-alias-rpc.mjs';
+import { publicWorkspaceError } from '../shared/workspace-rpc.mjs';
+import { TOKEN_BOT_ENDPOINTS, createTokenBotRpcHandler } from '../shared/rpc.mjs';
 import { validGroupTriggersConfig } from '../shared/group-triggers-rpc.mjs';
 
 export const ONEBOT_RPC_CHANNEL = '/onebot';
 
 export const ONEBOT_ENDPOINTS = Object.freeze({
-  status: 'connection.status',
+  ...TOKEN_BOT_ENDPOINTS,
   deleteBot: 'bot.delete',
   restartBot: 'bot.reconnect',
   addBot: 'onebot.add-bot',
   setSettings: 'onebot.set-settings',
-  setWorkspace: SET_WORKSPACE_ENDPOINT,
-  setModel: SET_MODEL_ENDPOINT,
-  setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
-  setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
-  setBusyMessageMode: SET_MESSAGE_MODE_ENDPOINT,
-  setEmptyAnswerMode: SET_EMPTY_ANSWER_MODE_ENDPOINT,
-  setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
-  setAlias: SET_ALIAS_ENDPOINT,
   getGroupRules: 'onebot.group-rules.get',
   setGroupRules: 'onebot.group-rules.set',
   listGroups: 'onebot.group-rules.list',
@@ -100,17 +81,17 @@ function invalidPayload(message) {
 
 const SETTINGS_KEYS = ['botId', 'host', 'port', 'path', 'imageSendFormat', 'selfIds'];
 
-/** The shared bot surface: one payload validator and one controller call each. */
-const SHARED_ENDPOINTS = [
-  [SET_WORKSPACE_ENDPOINT, validWorkspacePayload, 'updateWorkspace', (payload) => [payload.botId, payload.workspace]],
-  [SET_MODEL_ENDPOINT, validModelPayload, 'updateModel', (payload) => [payload.botId, payload.model]],
-  [SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload, 'updateAgentPreset', (payload) => [payload.botId, payload.agentPreset]],
-  [SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload, 'updateContextEnhancement', (payload) => [payload.botId, payload.config]],
-  [SET_MESSAGE_MODE_ENDPOINT, validMessageModePayload, 'updateBusyMessageMode', (payload) => [payload.botId, payload.busyMessageMode]],
-  [SET_EMPTY_ANSWER_MODE_ENDPOINT, validEmptyAnswerPayload, 'updateEmptyAnswerMode', (payload) => [payload.botId, payload.emptyAnswerMode]],
-  [SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload, 'updateAccessPolicy', (payload) => [payload.botId, payload.policy]],
-  [SET_ALIAS_ENDPOINT, validAliasPayload, 'updateAlias', (payload) => [payload.botId, payload.alias]],
-];
+/** Endpoints this module answers itself; the rest is the shared table's job. */
+const ONEBOT_OWN_ENDPOINTS = new Set([
+  ONEBOT_ENDPOINTS.status,
+  ONEBOT_ENDPOINTS.deleteBot,
+  ONEBOT_ENDPOINTS.restartBot,
+  ONEBOT_ENDPOINTS.addBot,
+  ONEBOT_ENDPOINTS.setSettings,
+  ONEBOT_ENDPOINTS.getGroupRules,
+  ONEBOT_ENDPOINTS.setGroupRules,
+  ONEBOT_ENDPOINTS.listGroups,
+]);
 
 function validate(endpoint, payload) {
   if (!isRecord(payload)) return 'Payload must be an object.';
@@ -169,19 +150,39 @@ function validate(endpoint, payload) {
         && validRemovedGroupIds(payload.removed)
         ? null : 'onebot.group-rules.set received invalid rules.';
     }
-    default: {
-      const shared = SHARED_ENDPOINTS.find(([name]) => name === endpoint);
-      if (shared === undefined) return null;
-      return shared[1](payload) ? null : `${endpoint} received an invalid payload.`;
-    }
+    default:
+      // A shared endpoint: the shared handler validates and dispatches it.
+      return null;
   }
 }
 
 /** Wrap a controller in the RPC surface, refusing malformed payloads loudly. */
 export function createOneBotRpcHandler(controller) {
+  // The shared handler only ever sees settings endpoints; the lifecycle calls
+  // stay on OneBot's own path because its restart takes `sendTest` and it has no
+  // credential binding at all. The adapter exists just to satisfy the contract,
+  // and it is built lazily so a caller that only touches OneBot's own endpoints
+  // does not need the whole lifecycle surface.
+  let sharedHandler = null;
+  const shared = (endpoint, payload) => {
+    sharedHandler ??= createTokenBotRpcHandler({
+      ...controller,
+      bindCredentials: () => {
+        throw new Error('OneBot 不需要绑定凭据。');
+      },
+      reconnectBot: (botId) => controller.restartBot(botId),
+      deleteBot: (botId) => controller.deleteBot(botId, { confirm: true }),
+    }, { channel: 'OneBot' });
+    return sharedHandler(endpoint, payload);
+  };
+
   return async (endpoint, payload = {}) => {
     if (!ONEBOT_RPC_ENDPOINTS.includes(endpoint)) {
       return failure('onebot-unknown-endpoint', `Unknown OneBot endpoint: ${endpoint}`);
+    }
+    if (!ONEBOT_OWN_ENDPOINTS.has(endpoint)) {
+      // Inherited from the shared table: one implementation, no drift.
+      return shared(endpoint, payload);
     }
     const invalid = validate(endpoint, payload);
     if (invalid !== null) return invalidPayload(invalid);
@@ -216,15 +217,9 @@ export function createOneBotRpcHandler(controller) {
               removed: payload.removed ?? [],
             }),
           };
-        default: {
-          const shared = SHARED_ENDPOINTS.find(([name]) => name === endpoint);
-          if (shared === undefined) return failure('onebot-unknown-endpoint', `Unknown OneBot endpoint: ${endpoint}`);
-          const [, , method, argsOf] = shared;
-          if (typeof controller[method] !== 'function') {
-            return failure('onebot-unsupported', `${endpoint} is not available for this channel yet`);
-          }
-          return { ok: true, value: await controller[method](...argsOf(payload)) };
-        }
+        default:
+          // Unreachable: ONEBOT_OWN_ENDPOINTS lists every endpoint handled here.
+          return failure('onebot-unknown-endpoint', `Unknown OneBot endpoint: ${endpoint}`);
       }
     } catch (error) {
       const published = publicWorkspaceError(error);

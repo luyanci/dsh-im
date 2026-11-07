@@ -82,6 +82,15 @@ forward instead of treating a prerelease suffix as older.
   says 「本轮处理已结束，没有文本回复。」 (default) or stays silent, dropping only the progress bubble. The switch
   lives in the shared per-bot settings document, defaults to `notice`, so existing bots behave exactly as before; the
   「任务已完成。」 notice for a file-only turn is unchanged.
+- OneBot 的管理端点表改成**组合共享表**（与 Telegram 同构）：`ONEBOT_ENDPOINTS` 现在展开
+  `TOKEN_BOT_ENDPOINTS`，只有 add-bot、监听设置、群聊规则这些专属端点自己处理，其余交给共享处理器。
+  之前逐条重抄共享端点，`bot.empty-answer.set` 因此只在 Telegram 可用、QQ 侧报「Unknown OneBot endpoint」；
+  以后共享层新增设置项 OneBot 自动继承。专属端点（重启带 `sendTest`、无凭据绑定）行为与错误文案不变。
+  OneBot's management table now composes the shared one, exactly like Telegram: `ONEBOT_ENDPOINTS` spreads
+  `TOKEN_BOT_ENDPOINTS` and only add-bot, listener settings and group rules are handled locally. Re-listing every
+  shared endpoint is why `bot.empty-answer.set` worked on Telegram but answered "Unknown OneBot endpoint" on QQ;
+  new shared settings are now inherited automatically. The OneBot-only calls (restart with `sendTest`, no credential
+  binding) keep their behaviour and error text.
 
 ## [5.11.2] - 2026-11-06
 
