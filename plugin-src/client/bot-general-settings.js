@@ -107,7 +107,9 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
           h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
             h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })))),
       // Only channels whose RPC table registers the endpoint offer this row;
-      // the others would answer "unknown endpoint" and look broken.
+      // the others would answer "unknown endpoint" and look broken. The select
+      // carries the same chevron as the message-mode row above — a bare
+      // <select> renders as plain text and does not look selectable.
       EMPTY_ANSWER_CHANNELS.has(channel) ? h('div', { className: 'dim-botGeneralRow' },
         h('div', { className: 'dim-botGeneralText' },
           h('label', { className: 'dim-botGeneralTitle', htmlFor: `${modeId}-empty-answer` }, '空白输出'),
@@ -125,7 +127,9 @@ export function BotGeneralSettingsPage({ channel, account, rpcCall }) {
             onChange: (event) => void save('emptyAnswerMode', event.target.value),
           },
           h('option', { value: 'notice' }, '发一句提示'),
-          h('option', { value: 'silent' }, '静默')))) : null,
+          h('option', { value: 'silent' }, '静默')),
+          h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+            h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })))) : null,
       channel === 'feishu' ? [
         ['thinkingExpanded', '展开思考过程'],
         ['toolsExpanded', '展开工具摘要'],
