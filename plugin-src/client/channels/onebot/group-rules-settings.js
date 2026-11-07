@@ -239,7 +239,7 @@ export function OneBotGroupRulesSettings({ account, rpcCall }) {
       const title = titleOf(groupId);
       const known = state.available.find((group) => group.groupId === groupId) ?? null;
       return h('fieldset', { key: groupId, className: 'dim-accessScene' },
-        h('legend', null, title || `群 ${groupId}`),
+        h('legend', null, title || groupId),
         h(ValueRow, { label: '群号', value: groupId }),
         known === null ? h(ValueRow, { label: '状态', value: '不在当前群列表' }) : null,
         known?.memberCount === null || known === null

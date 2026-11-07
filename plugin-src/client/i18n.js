@@ -219,7 +219,6 @@ const EN = Object.freeze({
   '群聊设置已保存，机器人已重连。': 'Group settings saved and the bot reconnected.',
   '未命名群': 'Unnamed group',
   '— 选择一个群 —': '— Choose a group —',
-  '群 ${groupId}': 'Group ${groupId}',
   '状态': 'Status',
   '空白输出': 'Empty answer',
   '发一句提示': 'Send a short notice',

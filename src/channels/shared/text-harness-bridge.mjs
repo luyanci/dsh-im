@@ -1422,9 +1422,11 @@ export class TextHarnessBridge {
           this.#logger.warn?.(`[dsh-im:${this.#descriptor.key}] context consumption marking failed:`, error?.message ?? error);
         }
       }
-      // A turn that produced no text and no files ends here: dropping the
-      // placeholder is the whole answer, which is what `silent` asks for.
-      if (!cleanText(answer) && artifacts.length === 0) {
+      // A turn that produced no text and no files ends here only when silence was
+      // asked for: dropping the placeholder is the whole answer, which is exactly
+      // what `silent` means. Any other empty answer keeps the previous handling.
+      if (!cleanText(answer) && artifacts.length === 0
+        && this.#harness?.currentEmptyAnswerMode?.() === 'silent') {
         stream?.cancel?.();
         return;
       }
