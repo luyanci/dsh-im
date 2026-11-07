@@ -1309,6 +1309,17 @@ export class TelegramBotClient {
     });
   }
 
+  /** Deliver a .gif as a moving animation instead of a still first frame. */
+  sendAnimation(target, file) {
+    return this.#api.sendAnimation({
+      chatId: target.chatId,
+      file,
+      replyToMessageId: target.replyToMessageId,
+      messageThreadId: target.messageThreadId,
+      signal: this.#signal,
+    });
+  }
+
   /** Deliver a .webp sticker as an actual Telegram sticker. */
   sendSticker(target, file) {
     return this.#api.sendSticker({

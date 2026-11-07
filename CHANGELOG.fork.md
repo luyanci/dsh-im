@@ -63,6 +63,10 @@ forward instead of treating a prerelease suffix as older.
   Telegram `text_link` and `text_mention` entities are no longer dropped: a hidden link becomes `[label](url)`, a
   mentioned user becomes `[name](tg://user?id=…)`, and `code` / `pre` become inline and fenced code. The same
   rendering applies to a plain message and to a quoted one; before this the prompt saw the label but not the target.
+- 出站 `.gif` 现在走 `sendAnimation` 发成会动的动图。之前它落进 `sendPhoto`，Telegram 只会取第一帧，
+  所以发出去是一张静止图；`image/gif` 也不再被并进相册（相册只有静态图）。
+  Outbound `.gif` now goes through `sendAnimation`. It used to fall into `sendPhoto`, where Telegram keeps only the
+  first frame, so the reader got a still picture; `image/gif` is also excluded from photo albums for the same reason.
 
 ## [5.11.2] - 2026-11-06
 

@@ -124,6 +124,52 @@ test('an image uses file delivery when the channel has no image sender', async (
   await assertReleased(artifact);
 });
 
+test('a gif goes out as an animation, never as a still photo', async (t) => {
+  // sendPhoto with a GIF sends only the first frame, so the channel must be asked
+  // for an animation whenever it can provide one.
+  const artifact = await committedArtifact(t, 'cheer.gif', Buffer.from([0x47, 0x49, 0x46]));
+  const calls = [];
+
+  const delivery = await deliverOutboundArtifacts({
+    artifacts: [artifact],
+    channelKey: 'test',
+    sendAnimation: async () => {
+      calls.push('animation');
+      return { id: 'animation-1' };
+    },
+    sendImage: async () => {
+      calls.push('image');
+      return { id: 'photo-1' };
+    },
+    sendFile: async () => {
+      calls.push('file');
+      return { id: 'file-1' };
+    },
+  });
+
+  assert.deepEqual(calls, ['animation']);
+  assert.equal(delivery.receipt.presentation, 'test-animation');
+  assert.deepEqual(delivery.receipt.providerMessageIds, ['animation-1']);
+  await assertReleased(artifact);
+});
+
+test('a gif without an animation sender still falls back to the photo path', async (t) => {
+  const artifact = await committedArtifact(t, 'cheer.gif', Buffer.from([0x47, 0x49, 0x46]));
+  const calls = [];
+
+  const delivery = await deliverOutboundArtifacts({
+    artifacts: [artifact],
+    channelKey: 'test',
+    sendImage: async () => {
+      calls.push('image');
+      return { id: 'photo-2' };
+    },
+  });
+
+  assert.deepEqual(calls, ['image']);
+  assert.equal(delivery.receipt.presentation, 'test-image');
+});
+
 test('a definitive native-image rejection falls back to file delivery', async (t) => {
   const artifact = await committedArtifact(t, 'result.webp', Buffer.from([1]));
   const calls = [];

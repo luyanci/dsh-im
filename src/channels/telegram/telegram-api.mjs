@@ -440,6 +440,20 @@ export class TelegramApi {
     });
   }
 
+  /**
+   * A GIF sent as a photo arrives as its first frame; `sendAnimation` keeps it
+   * moving. Telegram accepts GIF and silent MP4 here.
+   */
+  async sendAnimation({ chatId, file, replyToMessageId, messageThreadId, signal }) {
+    return this.#sendArtifact('sendAnimation', 'animation', 'animation', {
+      chatId,
+      file,
+      replyToMessageId,
+      messageThreadId,
+      signal,
+    });
+  }
+
   async sendPhoto({ chatId, file, replyToMessageId, messageThreadId, signal }) {
     return this.#sendArtifact('sendPhoto', 'photo', 'photo', {
       chatId,

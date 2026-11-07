@@ -34,11 +34,26 @@ function providerIds(value) {
 }
 
 async function sendMaterializedArtifact(file, {
+  sendAnimation,
   sendFile,
   sendImage,
   sendSticker,
   signal,
 }) {
+  // A .gif sent through sendPhoto arrives as a still frame; only sendAnimation
+  // keeps it moving.
+  if (file.mediaType === 'image/gif' && typeof sendAnimation === 'function') {
+    try {
+      return {
+        presentation: 'animation',
+        result: await sendAnimation(file),
+      };
+    } catch (error) {
+      if (isAbort(error, signal) || error?.code === 'artifact-delivery-uncertain') {
+        throw error;
+      }
+    }
+  }
   // A .webp is a sticker for Telegram; sending it as a photo would look like a
   // rectangle picture instead of the sticker the user meant.
   if (file.mediaType === 'image/webp' && typeof sendSticker === 'function') {
@@ -85,6 +100,7 @@ export async function deliverOutboundArtifacts({
   alwaysMerge = false,
   channelKey,
   signal,
+  sendAnimation,
   sendFile,
   sendImage,
   sendImageGroup,
@@ -104,7 +120,9 @@ export async function deliverOutboundArtifacts({
     // Stickers are single messages, so they never join an album.
     const isImageArtifact = (candidate) => typeof candidate?.mediaType === 'string'
       && candidate.mediaType.startsWith('image/')
-      && !(candidate.mediaType === 'image/webp' && typeof sendSticker === 'function');
+      && !(candidate.mediaType === 'image/webp' && typeof sendSticker === 'function')
+      // A GIF that can animate must not drop into a still-photo album.
+      && !(candidate.mediaType === 'image/gif' && typeof sendAnimation === 'function');
 
     while (artifactIndex < artifacts.length) {
       const artifact = artifacts[artifactIndex];
@@ -152,6 +170,7 @@ export async function deliverOutboundArtifacts({
         const file = await materializeOutboundArtifact(artifact, { signal });
         signal?.throwIfAborted();
         const sent = await sendMaterializedArtifact(file, {
+          sendAnimation,
           sendFile,
           sendImage,
           sendSticker,
