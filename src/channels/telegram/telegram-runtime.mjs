@@ -357,7 +357,117 @@ function telegramReplyAttachments(message) {
   return attachments.filter(Boolean);
 }
 
-function telegramReplyReference(message, { quote, loadReplyContent } = {}) {
+const QUOTED_MEDIA_TYPES = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  pdf: 'application/pdf',
+};
+
+function quotedMediaType(name, fallback) {
+  const extension = String(name ?? '').toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  return QUOTED_MEDIA_TYPES[extension] ?? fallback;
+}
+
+function quotedFileName(file, fallbackExtension) {
+  const named = typeof file?.file_name === 'string' && file.file_name ? file.file_name : '';
+  if (named) return named;
+  const unique = String(file?.file_unique_id ?? file?.file_id ?? 'file');
+  return `${unique}.${fallbackExtension}`;
+}
+
+/**
+ * A quoted file is downloaded before the turn starts, so a heavy quote delays the
+ * answer. Photos and stickers are small; a video or a multi-megabyte document is
+ * left as a name-only attachment instead of holding the turn hostage.
+ */
+const QUOTED_FILE_MAX_BYTES = 4 * 1024 * 1024;
+
+function quotedFileSource(file, { fallbackExtension, fallbackMediaType, loadFile }) {
+  if (!file || typeof file.file_id !== 'string' || !file.file_id) return null;
+  if (typeof loadFile !== 'function') return null;
+  const size = fileSize(file.file_size);
+  if (Number.isFinite(size) && size > QUOTED_FILE_MAX_BYTES) return null;
+  const name = quotedFileName(file, fallbackExtension);
+  const declared = typeof file.mime_type === 'string' && file.mime_type
+    ? file.mime_type.toLowerCase() : undefined;
+  return {
+    name,
+    mediaType: declared ?? quotedMediaType(name, fallbackMediaType),
+    size,
+    load: ({ signal, maxBytes } = {}) => loadFile(file.file_id, { signal, maxBytes }),
+  };
+}
+
+/**
+ * The bytes behind a quoted photo, document, sticker or media item.
+ *
+ * A quote used to reach the model as a name-only attachment, so asking "what is
+ * in this picture?" about a quoted photo could not be answered. The descriptor
+ * here is lazy: the inbound-file pipeline downloads it only when the turn needs
+ * the file.
+ */
+function telegramReplyFiles(message, loadFile) {
+  if (!message || typeof message !== 'object') return [];
+  const files = [];
+  const photo = Array.isArray(message.photo) && message.photo.length > 0
+    ? message.photo.reduce((best, candidate) => (
+      photoScore(candidate) > photoScore(best) ? candidate : best
+    ))
+    : null;
+  if (photo) {
+    const value = quotedFileSource(photo, {
+      fallbackExtension: 'jpg', fallbackMediaType: 'image/jpeg', loadFile,
+    });
+    if (value) files.push(value);
+    return files;
+  }
+  if (message.document) {
+    const value = quotedFileSource(message.document, {
+      fallbackExtension: 'bin',
+      fallbackMediaType: imageTypeForDocument(message.document)
+        ? quotedMediaType(message.document.file_name, 'image/jpeg')
+        : 'application/octet-stream',
+      loadFile,
+    });
+    if (value) files.push(value);
+  }
+  if (message.sticker) {
+    const animated = message.sticker.is_animated === true || message.sticker.is_video === true;
+    const thumbnail = message.sticker.thumbnail ?? message.sticker.thumb;
+    const source = animated && typeof thumbnail?.file_id === 'string' ? thumbnail : message.sticker;
+    const value = quotedFileSource(source, {
+      fallbackExtension: animated ? 'webm' : 'webp',
+      fallbackMediaType: animated ? 'video/webm' : 'image/webp',
+      loadFile,
+    });
+    if (value) files.push(value);
+  }
+  for (const [field, fallbackExtension, fallbackMediaType] of [
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['voice', 'ogg', 'audio/ogg'],
+    ['video', 'mp4', 'video/mp4'],
+    ['video_note', 'mp4', 'video/mp4'],
+    ['animation', 'mp4', 'video/mp4'],
+  ]) {
+    if (!message[field]) continue;
+    const value = quotedFileSource(message[field], {
+      fallbackExtension, fallbackMediaType, loadFile,
+    });
+    if (value) files.push(value);
+  }
+  return files;
+}
+
+function telegramReplyReference(message, { quote, loadReplyContent, loadFile } = {}) {
   if ((!message || typeof message !== 'object')
     && (!quote || typeof quote !== 'object')) return undefined;
   const authorId = message?.from?.id === undefined ? undefined : String(message.from.id);
@@ -371,6 +481,7 @@ function telegramReplyReference(message, { quote, loadReplyContent } = {}) {
     ? message.text : typeof message?.caption === 'string'
       ? message.caption : typeof quote?.text === 'string' ? quote.text : '';
   const attachments = telegramReplyAttachments(message);
+  const files = telegramReplyFiles(message, loadFile);
   const messageId = Number.isSafeInteger(message?.message_id)
     ? String(message.message_id) : undefined;
   const createdAt = Number.isSafeInteger(message?.date) && message.date >= 0
@@ -388,6 +499,7 @@ function telegramReplyReference(message, { quote, loadReplyContent } = {}) {
     ...(authorName ? { authorName } : {}),
     ...(content.trim() ? { content } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(files.length > 0 ? { files } : {}),
     ...(load ? { load } : {}),
     ...(!content.trim() && attachments.length === 0 && !load
       ? { unavailableReason: 'not-delivered' }
@@ -576,6 +688,7 @@ export function normalizeTelegramUpdate(update, {
           ...reference,
         }, options),
       } : {}),
+      loadFile,
     },
   );
   return {
@@ -920,6 +1033,51 @@ function isMessageNotModified(error) {
   return /message is not modified/iu.test(error?.message ?? '');
 }
 
+/** How many recently sent answers stay available for quoting back. */
+const ANSWER_TEXT_CACHE_LIMIT = 64;
+
+/**
+ * Recovering a quoted message from the session transcript is a last resort: it
+ * pages through history and used to be allowed five seconds, which the reader
+ * experiences as the bot thinking. Two seconds is enough to find a message that
+ * is still in the transcript and keeps a bad quote from stalling the answer.
+ */
+const QUOTED_RECOVERY_TIMEOUT_MS = 2_000;
+
+/**
+ * The answers this process sent, keyed by Telegram message id and shared between
+ * the delivery stream (which writes) and the runtime (which reads when a quote
+ * needs the original text).
+ */
+const recentAnswerTexts = new Map();
+
+function rememberAnswerText(providerMessageIds, text) {
+  const value = typeof text === 'string' ? text : '';
+  if (!value.trim() || !Array.isArray(providerMessageIds)) return;
+  for (const id of providerMessageIds) {
+    if (!id) continue;
+    const key = String(id);
+    recentAnswerTexts.delete(key);
+    recentAnswerTexts.set(key, value);
+  }
+  while (recentAnswerTexts.size > ANSWER_TEXT_CACHE_LIMIT) {
+    const oldest = recentAnswerTexts.keys().next().value;
+    if (oldest === undefined) break;
+    recentAnswerTexts.delete(oldest);
+  }
+}
+
+function recallAnswerText(messageId) {
+  if (messageId === undefined || messageId === null) return undefined;
+  return recentAnswerTexts.get(String(messageId));
+}
+
+/**
+ * Exported for the regression test only: a quoted message the bot sent itself must
+ * resolve from this cache instead of paging through the session transcript.
+ */
+export { QUOTED_RECOVERY_TIMEOUT_MS, recallAnswerText, rememberAnswerText };
+
 export class TelegramBotClient {
   #api;
   #signal;
@@ -1204,6 +1362,12 @@ export class TelegramBotClient {
    * notifies the client that the turn is over.
    */
   async #finishDeliveryStream(target, messageId, block) {
+    const result = await this.#deliverAnswer(target, messageId, block);
+    rememberAnswerText(result?.providerMessageIds, block.text);
+    return result;
+  }
+
+  async #deliverAnswer(target, messageId, block) {
     if (!this.#editFinalAnswer) {
       await this.#deletePlaceholder(target, messageId);
       return this.#sendRich(target, block);
@@ -2143,6 +2307,8 @@ export class TelegramRuntime {
   }
 
   async #loadReplyContent(reference, { signal } = {}) {
+    const cached = recallAnswerText(reference?.messageId);
+    if (typeof cached === 'string' && cached.trim()) return { content: cached };
     const key = typeof reference?.conversationKey === 'string'
       ? reference.conversationKey.trim() : '';
     const quotedAt = Number(reference?.createdAt);
@@ -2153,7 +2319,9 @@ export class TelegramRuntime {
     const session = typeof sessionId === 'string' && sessionId
       ? this.#harness.workspaceSession?.(sessionId, key)
       : null;
-    const text = await recoverAssistantTextByTimestamp({ session, quotedAt, signal });
+    const text = await recoverAssistantTextByTimestamp({
+      session, quotedAt, signal, timeoutMs: QUOTED_RECOVERY_TIMEOUT_MS,
+    });
     return text ? { content: text } : { unavailableReason: 'not-delivered' };
   }
 

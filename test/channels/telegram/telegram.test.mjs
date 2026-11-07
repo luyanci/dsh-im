@@ -32,6 +32,8 @@ import {
   TelegramRuntime,
   TELEGRAM_COMMAND_MENU,
   normalizeTelegramUpdate,
+  recallAnswerText,
+  rememberAnswerText,
   telegramCommandMenu,
   telegramCommandMenuScopes,
   telegramInboundAllowed,
@@ -1255,13 +1257,16 @@ test('Telegram maps one reply_to_message snapshot without expanding nested repli
     },
   }, { botId: '123456789', username: 'HarnessBot' });
   assert.equal(replied.addressed, true);
-  assert.deepEqual(replied.replyTo, {
-    messageId: '7',
-    authorId: '123456789',
-    authorName: 'Harness Bot',
-    content: '第一层原文',
-    attachments: [{ kind: 'image' }],
-  });
+  assert.equal(replied.replyTo.messageId, '7');
+  assert.equal(replied.replyTo.authorId, '123456789');
+  assert.equal(replied.replyTo.authorName, 'Harness Bot');
+  assert.equal(replied.replyTo.content, '第一层原文');
+  assert.deepEqual(replied.replyTo.attachments, [{ kind: 'image' }]);
+  // The quoted photo keeps its bytes reachable, not just its name.
+  assert.equal(replied.replyTo.files.length, 1);
+  assert.equal(replied.replyTo.files[0].mediaType, 'image/jpeg');
+  assert.equal(replied.replyTo.files[0].name, 'quoted-photo.jpg');
+  assert.equal(typeof replied.replyTo.files[0].load, 'function');
   assert.doesNotMatch(JSON.stringify(replied.replyTo), /不应递归/);
 
   const documentReply = normalizeTelegramUpdate({
@@ -1296,6 +1301,71 @@ test('Telegram maps one reply_to_message snapshot without expanding nested repli
     },
   }, { botId: '123456789', username: 'HarnessBot' });
   assert.deepEqual(stickerReply.replyTo.attachments, [{ kind: 'image' }]);
+});
+
+test('a quoted photo downloads through the injected loader only when asked', async () => {
+  const requests = [];
+  const quoted = normalizeTelegramUpdate({
+    update_id: 19,
+    message: {
+      message_id: 20,
+      chat: { id: 88, type: 'private' },
+      from: { id: 42, is_bot: false },
+      text: '这张图里是什么？',
+      reply_to_message: {
+        message_id: 19,
+        from: { id: 41, username: 'alice' },
+        photo: [{ file_id: 'photo-large', file_unique_id: 'quoted-photo', file_size: 2_000 }],
+      },
+    },
+  }, {
+    botId: '123456789',
+    username: 'HarnessBot',
+    loadFile: async (fileId, options) => {
+      requests.push({ fileId, hasSignal: options?.signal !== undefined, maxBytes: options?.maxBytes });
+      return Buffer.from([9, 9, 9]);
+    },
+  });
+
+  assert.deepEqual(requests, [], 'nothing is fetched while normalizing');
+  assert.equal(quoted.replyTo.files[0].mediaType, 'image/jpeg');
+  const bytes = await quoted.replyTo.files[0].load({ maxBytes: 1024 });
+  assert.deepEqual([...bytes], [9, 9, 9]);
+  assert.deepEqual(requests, [{ fileId: 'photo-large', hasSignal: false, maxBytes: 1024 }]);
+});
+
+test('an answer the bot sent is recalled for a quote instead of paging the transcript', () => {
+  // Telegram omits the text of older quoted messages; recovering it from the
+  // session transcript cost seconds, so a message the bot sent itself is cached.
+  rememberAnswerText(['501', '502'], '这是刚才的答案');
+  assert.equal(recallAnswerText('501'), '这是刚才的答案');
+  assert.equal(recallAnswerText(502), '这是刚才的答案');
+  assert.equal(recallAnswerText('999'), undefined);
+  assert.equal(recallAnswerText(undefined), undefined);
+});
+
+test('a heavy quoted file keeps its name but is not downloaded before the turn', () => {
+  const quoted = normalizeTelegramUpdate({
+    update_id: 20,
+    message: {
+      message_id: 21,
+      chat: { id: 88, type: 'private' },
+      from: { id: 42, is_bot: false },
+      text: '总结这个视频',
+      reply_to_message: {
+        message_id: 20,
+        from: { id: 41, username: 'alice' },
+        video: { file_id: 'big-video', file_unique_id: 'big-video', file_size: 40 * 1024 * 1024 },
+      },
+    },
+  }, {
+    botId: '123456789',
+    username: 'HarnessBot',
+    loadFile: async () => Buffer.from([1]),
+  });
+
+  assert.deepEqual(quoted.replyTo.attachments, [{ kind: 'video' }]);
+  assert.equal(quoted.replyTo.files, undefined, 'a huge quote must not delay the answer');
 });
 
 test('Telegram uses TextQuote and bounded history loading when reply_to_message omits text', async () => {
