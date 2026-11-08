@@ -27,6 +27,13 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Added / 新增
 
+- 上下文增强新增字段 `mentioned`：消息是「@ 了机器人」或「回复机器人」触发时，`<dsh_im_source>` 块里会出现
+  `"mentioned":true`；未提及时整个字段省略（不写 false）。字段从协议结构（`at` 段比对 selfId、引用解析）取值，
+  走签名通道，用户正文里手打任何字样都伪造不了。之前的临时做法「正文插入 `@了你`」已回退——那是可伪造的纯文本。
+  Context enhancement gains a `mentioned` field: when a message mentioned the bot or replied to it, the
+  `<dsh_im_source>` block carries `"mentioned":true`; otherwise the field is omitted (never `false`). It is derived
+  from protocol structure (the `at` segment matching the bot id, reply resolution) and travels the signed path, so
+  nothing typed in the message body can forge it. The earlier `@了你` text marker is reverted: plain text is forgeable.
 - 新增显式静默标记 `[NO_REPLY]`：最终回复**整条**只有这个标记时，插件直接丢掉，读者看不到任何消息，
   也不会补「本轮处理已结束」的提示。模型很难真的输出空字符串，之前让它「安静结束」往往变成发一句占位；
   现在它有一个明确、可靠的办法闭嘴。标记只认整条精确匹配（大小写和首尾空白不敏感），正文里夹带不算。
@@ -53,13 +60,13 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Fixed / 修复
 
-- 上下文增强新增字段 `mentioned`：消息是「@ 了机器人」或「回复机器人」触发时，`<dsh_im_source>` 块里会出现
-  `"mentioned":true`；未提及时整个字段省略（不写 false）。字段从协议结构（`at` 段比对 selfId、引用解析）取值，
-  走签名通道，用户正文里手打任何字样都伪造不了。之前的临时做法「正文插入 `@了你`」已回退——那是可伪造的纯文本。
-  Context enhancement gains a `mentioned` field: when a message mentioned the bot or replied to it, the
-  `<dsh_im_source>` block carries `"mentioned":true`; otherwise the field is omitted (never `false`). It is derived
-  from protocol structure (the `at` segment matching the bot id, reply resolution) and travels the signed path, so
-  nothing typed in the message body can forge it. The earlier `@了你` text marker is reverted: plain text is forgeable.
+- `sentAt` 现在在 Telegram 和 OneBot 上也能用：两者分别从消息的 `date` / 事件 `time`（秒）取时刻，交给桥接层
+  按需渲染；此前后者只有微信实现了，勾了也不会出现。同时 `channel` 字段的允许列表补上 `onebot`、`matrix`、
+  `imessage`、`email`、`wecom-app`——之前 OneBot 的块里根本没有 `channel`，就是这个列表漏了它。
+  `sentAt` now works on Telegram and OneBot too: they publish the moment from the message `date` / event `time`
+  (seconds) and the bridge renders it on demand; before this only Weixin implemented it, so the field never appeared.
+  The `channel` allowlist also gained `onebot`, `matrix`, `imessage`, `email` and `wecom-app` — OneBot's source block
+  had no `channel` at all because the list never named it.
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
   现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。（`81174877`）

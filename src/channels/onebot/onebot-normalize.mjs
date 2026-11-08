@@ -366,6 +366,10 @@ export function normalizeOneBotEvent(event, {
     // message counts as tagging too, which the runtime adds once it has resolved
     // the quote author.
     taggedAtSelf: tagged,
+    // OneBot reports the send time in whole seconds; the bridge renders it only
+    // when the enhancement scope selects `sentAt`.
+    ...(Number.isSafeInteger(event.time) && event.time > 0
+      ? { sentAtMs: event.time * 1_000 } : {}),
     // A private event with `sub_type: 'group'` is a temporary group session: the
     // reply goes through send_private_msg, but the origin group must travel with
     // it or the answer is filed as an ordinary DM.

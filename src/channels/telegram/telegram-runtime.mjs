@@ -756,6 +756,10 @@ export function normalizeTelegramUpdate(update, {
       threadId: messageThreadId === undefined ? undefined : String(messageThreadId),
     }),
     senderIsBot: message.from?.is_bot === true && !anonymousSender && !channelSender,
+    // Telegram reports the send time in whole seconds; the bridge renders it only
+    // when the enhancement scope selects `sentAt`.
+    ...(Number.isSafeInteger(message?.date) && message.date >= 0
+      ? { sentAtMs: message.date * 1_000 } : {}),
     kind: direct ? 'direct' : 'group',
     conversationId,
     content: withForwardPrefix(

@@ -13,6 +13,7 @@ import {
   captureContextEnhancementSource,
   enhanceContextContent,
   stripInjectedContextTags,
+  withSentAt,
 } from './context-enhancement.mjs';
 import { runWorkspaceCommand, workspaceSwitchFailureText } from './workspace-command.mjs';
 import { runStatusCommand } from './status-command.mjs';
@@ -688,6 +689,29 @@ export class TextHarnessBridge {
     return { ...target, dshTurnKey: conversationKey };
   }
 
+  /**
+   * The source factory one prompt renders from.
+   *
+   * A channel that knows when the message was sent publishes it as `sentAtMs`;
+   * the moment then rides on the factory as a thunk, so a scope that is off or
+   * does not select `sentAt` reads nothing at all.
+   */
+  #contextSource(message, senderId) {
+    const contextSource = message.contextSource?.() ?? null;
+    const factory = () => ({
+      channel: this.#descriptor.key,
+      senderId,
+      senderName: contextSource?.senderName,
+      conversationTitle: contextSource?.conversationTitle,
+      chatId: contextSource?.chatId ?? message.conversationId,
+      threadId: contextSource?.threadId,
+      mentioned: message.taggedAtSelf === true || message.repliedToBot === true,
+    });
+    return Number.isFinite(message.sentAtMs)
+      ? withSentAt(factory, message.sentAtMs)
+      : factory;
+  }
+
   /** The model-facing body of an auto-steered follow-up, labelled like a turn. */
   #steerTextFor(message, messageId, senderId) {
     const body = stripInjectedContextTags(cleanText(message.content) || controlTextOf(message));
@@ -697,16 +721,7 @@ export class TextHarnessBridge {
     if (!snapshot) return labelled;
     // A mid-turn follow-up carries the same provenance as the message that
     // opened the turn, so the member who steers is identified to the model too.
-    const contextSource = message.contextSource?.();
-    return enhanceContextContent(labelled, snapshot, () => ({
-      channel: this.#descriptor.key,
-      senderId,
-      senderName: contextSource?.senderName,
-      conversationTitle: contextSource?.conversationTitle,
-      chatId: contextSource?.chatId ?? message.conversationId,
-      threadId: contextSource?.threadId,
-      mentioned: message.taggedAtSelf === true || message.repliedToBot === true,
-    }));
+    return enhanceContextContent(labelled, snapshot, this.#contextSource(message, senderId));
   }
 
   /** A steered message became part of the in-flight turn: settle its receipt. */
@@ -1278,15 +1293,7 @@ export class TextHarnessBridge {
       if (snapshot) {
         const originalContent = content ?? text;
         contextSource = message.contextSource?.() ?? null;
-        content = enhanceContextContent(originalContent, snapshot, () => ({
-          channel: this.#descriptor.key,
-          senderId,
-          senderName: contextSource?.senderName,
-          conversationTitle: contextSource?.conversationTitle,
-          chatId: contextSource?.chatId ?? message.conversationId,
-          threadId: contextSource?.threadId,
-          mentioned: message.taggedAtSelf === true || message.repliedToBot === true,
-        }));
+        content = enhanceContextContent(originalContent, snapshot, this.#contextSource(message, senderId));
         contextEnhanced = content !== originalContent;
       }
       // Collected after command handling so control commands never pay for a

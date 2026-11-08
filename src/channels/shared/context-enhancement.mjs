@@ -156,7 +156,8 @@ const SCOPE_KEYS = ['enabled', 'fields', 'guidance'];
 const LEGACY_CONFIG_KEYS = ['groupEnabled', 'directEnabled', 'fields', 'guidance'];
 const CHANNELS = new Set([
   'wecom', 'weixin', 'feishu', 'dingtalk', 'qq',
-  'slack', 'telegram', 'discord', 'whatsapp',
+  'slack', 'telegram', 'discord', 'whatsapp', 'onebot',
+  'matrix', 'imessage', 'email', 'wecom-app',
 ]);
 const SOURCE_LIMITS = {
   channel: 16, conversationType: 6, senderId: 256, senderName: 256,

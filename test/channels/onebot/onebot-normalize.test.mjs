@@ -47,6 +47,14 @@ test('a bare group message is not addressed under the mention trigger', () => {
   assert.equal(message.senderId, String(USER_ID));
 });
 
+test('the event time travels as milliseconds for the sentAt field', () => {
+  // OneBot reports whole seconds; context enhancement renders the moment as a
+  // local timestamp, and the bridge only publishes it when present.
+  const message = normalize(groupEvent([{ type: 'text', data: { text: 'hi' } }], { time: 1794000000 }));
+  assert.equal(message.sentAtMs, 1794000000000);
+  assert.equal(normalize(groupEvent([])).sentAtMs, undefined);
+});
+
 test('an @ on our own account addresses the message and is not kept as text', () => {
   // The mention is reported structurally (the source block's `mentioned` field),
   // so typing the same words in the body cannot forge it.
