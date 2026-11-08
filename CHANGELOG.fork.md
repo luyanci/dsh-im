@@ -21,6 +21,13 @@ forward instead of treating a prerelease suffix as older.
 
 ### Added / 新增
 
+- 新增显式静默标记 `[NO_REPLY]`：最终回复**整条**只有这个标记时，插件直接丢掉，读者看不到任何消息，
+  也不会补「本轮处理已结束」的提示。模型很难真的输出空字符串，之前让它「安静结束」往往变成发一句占位；
+  现在它有一个明确、可靠的办法闭嘴。标记只认整条精确匹配（大小写和首尾空白不敏感），正文里夹带不算。
+  Turns can now be silenced with the exact marker `[NO_REPLY]`: when the final answer is that marker alone, the
+  bridge drops the whole reply — no message, no empty-answer notice. Models rarely produce a truly empty answer, so
+  "stay quiet" used to turn into a placeholder message; this gives them one reliable way to say nothing. Only an
+  exact match counts (case and surrounding whitespace ignored); the marker inside real content does nothing.
 - OneBot 渠道新增「机器人群聊行为」设置（每个账号一个独立页签，入口和 Telegram 对齐）：每个群可以单独设
   `不响应` / `被 @ 或回复时` / `所有消息`，并可限定只在名单成员发言时响应；规则与 Telegram 共用同一个规范化器，
   缺省 `mention`，所以老配置升级后行为不变。群列表直接问协议端（`get_group_list`），未连接时可手填群号；

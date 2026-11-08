@@ -16,7 +16,9 @@ import {
   releaseOutboundArtifact,
 } from '../../../src/channels/shared/semantic/artifact.mjs';
 import {
+  SILENT_REPLY_MARKER,
   createTextBridgeStatus,
+  isSilentReply,
   TextHarnessBridge,
 } from '../../../src/channels/shared/text-harness-bridge.mjs';
 import { SlackHarnessBridge } from '../../../src/channels/slack/slack-bridge.mjs';
@@ -209,6 +211,17 @@ async function committedArtifact(t, fileName, content, suffix) {
   t.after(() => releaseOutboundArtifact(artifact));
   return artifact;
 }
+
+test('only the exact silence marker counts as a silent reply', () => {
+  // A model almost never ends a turn with no text, so it needs one explicit way
+  // to say "say nothing". Anything with real content stays a normal answer.
+  assert.equal(isSilentReply(SILENT_REPLY_MARKER), true);
+  assert.equal(isSilentReply('  [no_reply]\n'), true);
+  assert.equal(isSilentReply('[NO_REPLY] done'), false);
+  assert.equal(isSilentReply('这次没话说。[NO_REPLY]'), false);
+  assert.equal(isSilentReply(''), false);
+  assert.equal(isSilentReply(undefined), false);
+});
 
 test('status reactions never delay safe errors, the conversation queue, or waitForIdle', async () => {
   const fixture = stateFixture();

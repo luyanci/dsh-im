@@ -88,6 +88,21 @@ const INTERACTION_RESOLVED_TEXT = '这个问题已在其他客户端处理，无
 const FILE_ONLY_COMPLETION_TEXT = '任务已完成。';
 
 /**
+ * The explicit "say nothing" answer.
+ *
+ * A model almost never ends a turn with literally no text, so asking it to stay
+ * quiet produced a stream of placeholders ("（潜水）") instead of silence. A final
+ * answer that is exactly this marker is dropped: the turn completes, the reader
+ * sees nothing, and no empty-answer notice is added either.
+ */
+export const SILENT_REPLY_MARKER = '[NO_REPLY]';
+
+export function isSilentReply(text) {
+  return typeof text === 'string'
+    && text.trim().toUpperCase() === SILENT_REPLY_MARKER;
+}
+
+/**
  * How many times one inbound message may be re-delivered after a failed turn.
  *
  * A failure releases the message's `markSeen` so the next poll retries it, which
@@ -1421,6 +1436,20 @@ export class TextHarnessBridge {
         } catch (error) {
           this.#logger.warn?.(`[dsh-im:${this.#descriptor.key}] context consumption marking failed:`, error?.message ?? error);
         }
+      }
+      // The model asked for silence explicitly: drop the carrier and send nothing,
+      // regardless of the bot's empty-answer preference.
+      if (isSilentReply(answer) && artifacts.length === 0) {
+        try {
+          if (typeof stream?.discard === 'function') await stream.discard();
+          else stream?.cancel?.();
+        } catch (error) {
+          this.#logger.warn?.(
+            `[dsh-im:${this.#descriptor.key}] removing the silent turn's placeholder failed:`,
+            error?.message ?? error,
+          );
+        }
+        return;
       }
       // A turn that produced no text and no files ends here only when silence was
       // asked for: dropping the placeholder is the whole answer, which is exactly
