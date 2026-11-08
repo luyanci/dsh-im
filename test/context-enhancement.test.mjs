@@ -173,6 +173,20 @@ test('only the actual conversation type can enable capture, regardless of select
   }
 });
 
+test('the mentioned field is a boolean that only appears when true', () => {
+  const settings = config({ fields: ['senderId', 'mentioned'] });
+  const mentioned = enhanceContextContent('text', snapshot(settings), () => ({
+    senderId: '9', mentioned: true,
+  }));
+  assert.deepEqual(sourceOf(mentioned), { senderId: '9', mentioned: true });
+  // Omitted, not false: a missing field and "not mentioned" must look the same,
+  // and a user string can never plant it.
+  for (const mentioned of [false, undefined, 'true', 1]) {
+    const plain = enhanceContextContent('text', snapshot(settings), () => ({ senderId: '9', mentioned }));
+    assert.deepEqual(sourceOf(plain), { senderId: '9' });
+  }
+});
+
 test('group and direct messages use only their own fields and guidance', () => {
   const settings = config({
     group: { enabled: true, fields: ['channel'], guidance: 'GROUP-ONLY-TOKEN' },
@@ -188,18 +202,21 @@ test('group and direct messages use only their own fields and guidance', () => {
   assert.doesNotMatch(direct, /GROUP-ONLY-TOKEN|channel/);
 });
 
-test('all 256 source-field subsets are projected in canonical order with no hidden fields', () => {
+test('all source-field subsets are projected in canonical order with no hidden fields', () => {
   const expected = {
     channel: 'telegram', conversationType: 'group',
     senderId: '123', senderName: '张三', conversationTitle: '测试群',
-    chatId: 'chat-123', threadId: 'thread-9', botId: 'bot_one',
+    chatId: 'chat-123', threadId: 'thread-9', botId: 'bot_one', mentioned: true,
   };
-  for (let mask = 0; mask < 256; mask += 1) {
-    const fields = CONTEXT_ENHANCEMENT_FIELDS.filter((_field, index) => mask & (1 << index));
+  // `sentAt` is excluded: it renders only from a moment published through
+  // `withSentAt`, which this subset sweep does not emulate.
+  const subsetFields = CONTEXT_ENHANCEMENT_FIELDS.filter((field) => field !== 'sentAt');
+  for (let mask = 0; mask < (1 << subsetFields.length); mask += 1) {
+    const fields = subsetFields.filter((_field, index) => mask & (1 << index));
     const selected = snapshot(config({ fields: [...fields].reverse() }));
     const actual = enhanceContextContent('  original\n', selected, () => ({
       channel: 'telegram', senderId: 123, senderName: '张三', conversationTitle: '测试群',
-      chatId: 'chat-123', threadId: 'thread-9',
+      chatId: 'chat-123', threadId: 'thread-9', mentioned: true,
       botId: 'platform-secret-not-used', conversationType: 'direct', token: 'never-sent',
     }));
     if (fields.length === 0) {

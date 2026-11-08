@@ -53,11 +53,13 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Fixed / 修复
 
-- OneBot 群里被 @ 时，`at` 段以前会被整段丢掉，只剩一个 `tagged` 标记；群规则设成「所有消息」时模型看不到任何"被点名"的痕迹，
-  会当成普通聊天。现在机器人自己的 @ 渲染成 `@了你` 保留在正文里（`tagged` 仍为 true，触发逻辑不变）。
-  In OneBot groups the `at` segment that mentioned the bot was dropped and only a `tagged` flag remained, so with an
-  "all messages" rule the model saw no sign of being called and answered as ordinary chatter. The bot's own mention now
-  stays in the text as `@了你` (the flag is unchanged, so triggering behaves the same).
+- 上下文增强新增字段 `mentioned`：消息是「@ 了机器人」或「回复机器人」触发时，`<dsh_im_source>` 块里会出现
+  `"mentioned":true`；未提及时整个字段省略（不写 false）。字段从协议结构（`at` 段比对 selfId、引用解析）取值，
+  走签名通道，用户正文里手打任何字样都伪造不了。之前的临时做法「正文插入 `@了你`」已回退——那是可伪造的纯文本。
+  Context enhancement gains a `mentioned` field: when a message mentioned the bot or replied to it, the
+  `<dsh_im_source>` block carries `"mentioned":true`; otherwise the field is omitted (never `false`). It is derived
+  from protocol structure (the `at` segment matching the bot id, reply resolution) and travels the signed path, so
+  nothing typed in the message body can forge it. The earlier `@了你` text marker is reverted: plain text is forgeable.
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
   现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。（`81174877`）

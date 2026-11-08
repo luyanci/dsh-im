@@ -600,6 +600,7 @@ const EN = Object.freeze({
   '该字段不是每个渠道都能提供。飞书话题群的消息会带上话题 ID，用于区分同一群组内的不同话题；当前消息不在话题中时，即使已选择该字段，<dsh_im_source> 中也会省略 threadId。': 'This field is not available on every channel. Messages in a Feishu topic chat carry the topic ID, which distinguishes different topics inside the same group. If the current message is not inside a topic, <dsh_im_source> omits threadId even when the field is selected.',
   '机器人标识': 'Bot ID',
   '发送时间': 'Sent at',
+  '是否被提及': 'Mentioned or replied to',
   '查看群聊发送时间字段说明': 'View group sent-at field details',
   '查看私聊发送时间字段说明': 'View direct sent-at field details',
   '当前消息的发送时间，格式为 YYYY-MM-DD HH:mm:ss（本机时区）。优先使用平台给出的发送时间；平台未提供时，从微信消息 ID 中解析出发送时间；两者都不可用时，即使已选择该字段，<dsh_im_source> 中也会省略 sentAt。目前仅微信渠道提供；把本机时区写进增强提示词，模型判断先后顺序时更准确。': 'When the current message was sent, as YYYY-MM-DD HH:mm:ss in the local time zone. The platform send time is used when available; otherwise the send time is decoded from the WeChat message ID. If neither is available, <dsh_im_source> omits sentAt even when the field is selected. WeChat is the only channel that provides it today. Naming your time zone in the guidance makes ordering judgements more accurate.',

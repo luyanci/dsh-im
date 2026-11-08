@@ -549,6 +549,7 @@ test('every source-field selection round-trips, including the fields with no rea
   const values = {
     channel: 'feishu', conversationType: 'group', senderId: 'u-1', senderName: '张三',
     conversationTitle: '项目群', chatId: 'chat-1', threadId: 'thread-1', botId: 'bot_one',
+    mentioned: true,
     // A channel hands over the raw instant; the block renders it.
     sentAt: Date.parse('2026-09-28T14:03:07+08:00'),
   };

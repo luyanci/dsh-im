@@ -121,7 +121,8 @@ test('a connected protocol end flips the status and hands messages to the bridge
 
   assert.equal(bridge.accepted.length, 1);
   assert.equal(bridge.accepted[0].addressed, true);
-  assert.equal(bridge.accepted[0].content, '@了你 123');
+  assert.equal(bridge.accepted[0].taggedAtSelf, true);
+  assert.equal(bridge.accepted[0].content, ' 123');
   assert.equal(runtime.status.ready, true);
   assert.equal(runtime.status.selfId, SELF_ID);
   await new Promise((resolve) => setTimeout(resolve, 60));

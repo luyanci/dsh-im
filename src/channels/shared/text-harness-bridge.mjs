@@ -705,6 +705,7 @@ export class TextHarnessBridge {
       conversationTitle: contextSource?.conversationTitle,
       chatId: contextSource?.chatId ?? message.conversationId,
       threadId: contextSource?.threadId,
+      mentioned: message.taggedAtSelf === true || message.repliedToBot === true,
     }));
   }
 
@@ -1284,6 +1285,7 @@ export class TextHarnessBridge {
           conversationTitle: contextSource?.conversationTitle,
           chatId: contextSource?.chatId ?? message.conversationId,
           threadId: contextSource?.threadId,
+          mentioned: message.taggedAtSelf === true || message.repliedToBot === true,
         }));
         contextEnhanced = content !== originalContent;
       }

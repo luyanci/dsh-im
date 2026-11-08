@@ -3,7 +3,7 @@ import { signedOpenTag } from './context-signature.mjs';
 
 export const CONTEXT_ENHANCEMENT_FIELDS = Object.freeze([
   'channel', 'conversationType', 'senderId', 'senderName', 'conversationTitle',
-  'chatId', 'threadId', 'botId', 'sentAt',
+  'chatId', 'threadId', 'botId', 'sentAt', 'mentioned',
 ]);
 
 /**
@@ -399,7 +399,7 @@ function sourceString(value, field) {
 function sourceBlock(snapshot, sourceFactory) {
   const { fields } = snapshot.config;
   const needsSource = fields.some((field) => [
-    'channel', 'senderId', 'senderName', 'conversationTitle', 'chatId', 'threadId',
+    'channel', 'senderId', 'senderName', 'conversationTitle', 'chatId', 'threadId', 'mentioned',
   ].includes(field));
   const source = needsSource ? sourceFactory?.() : null;
   const projected = {};
@@ -421,6 +421,12 @@ function sourceBlock(snapshot, sourceFactory) {
         warnedMissingSentAt = true;
         console.warn('[dsh-im] a published sentAt was unusable and was omitted from the block');
       }
+      continue;
+    }
+    if (field === 'mentioned') {
+      // A boolean fact rather than a string: only `true` is written, so a block
+      // that omits it means "not mentioned", never "false".
+      if (source?.mentioned === true) projected[field] = true;
       continue;
     }
     const value = field === 'botId' || field === 'conversationType'

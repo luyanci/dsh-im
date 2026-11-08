@@ -21,6 +21,7 @@ const FIELD_LABELS = Object.freeze({
   threadId: '话题标识',
   botId: '机器人标识',
   sentAt: '发送时间',
+  mentioned: '是否被提及',
 });
 
 const FIELD_HELP = Object.freeze({
