@@ -47,13 +47,15 @@ test('a bare group message is not addressed under the mention trigger', () => {
   assert.equal(message.senderId, String(USER_ID));
 });
 
-test('an @ on our own account addresses the message and is not kept as text', () => {
+test('an @ on our own account addresses the message and stays readable text', () => {
+  // With an "all messages" rule nothing else tells the model it was mentioned, so
+  // the mention must survive as text instead of vanishing with the `at` segment.
   const message = normalize(groupEvent([
     { type: 'at', data: { qq: String(SELF_ID) } },
     { type: 'text', data: { text: ' 123' } },
   ]));
   assert.equal(message.addressed, true);
-  assert.equal(message.content, ' 123');
+  assert.equal(message.content, '@了你 123');
 });
 
 test('an @ on someone else stays in the text', () => {
@@ -79,7 +81,7 @@ test('a reply segment carries the quoted id and nothing else', () => {
     { type: 'text', data: { text: ' 123' } },
   ]));
   assert.deepEqual(message.replyTo, { messageId: '392264416' });
-  assert.equal(message.content, ' 123');
+  assert.equal(message.content, '@了你 123');
   assert.equal(message.addressed, true);
 });
 

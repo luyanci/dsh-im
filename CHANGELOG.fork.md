@@ -53,6 +53,11 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Fixed / 修复
 
+- OneBot 群里被 @ 时，`at` 段以前会被整段丢掉，只剩一个 `tagged` 标记；群规则设成「所有消息」时模型看不到任何"被点名"的痕迹，
+  会当成普通聊天。现在机器人自己的 @ 渲染成 `@了你` 保留在正文里（`tagged` 仍为 true，触发逻辑不变）。
+  In OneBot groups the `at` segment that mentioned the bot was dropped and only a `tagged` flag remained, so with an
+  "all messages" rule the model saw no sign of being called and answered as ordinary chatter. The bot's own mention now
+  stays in the text as `@了你` (the flag is unchanged, so triggering behaves the same).
 - Telegram 出站富文本会把 `&` `<` `>` 转成 HTML 实体，但 Telegram 的富文本渲染**不解码**这些实体：
   正文里的 `<b>` 显示成 `&lt;b&gt;`，代码块里的 HTML 也变成 `&lt;!DOCTYPE html&gt;`，读者复制出来完全不能用。
   现在整段原样发送，不再做任何实体转义；`tg-thinking` 这类标签也不再被强转。（`81174877`）

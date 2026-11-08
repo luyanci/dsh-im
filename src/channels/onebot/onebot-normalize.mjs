@@ -13,6 +13,7 @@
  *   - an `image` segment has a bare resource name in `data.file` and the bytes
  *     behind `data.url`, so the image is downloaded lazily on demand.
  */
+import { t } from '../shared/i18n.mjs';
 import { groupTriggerAddressed } from '../telegram/group-triggers.mjs';
 
 /** Raised when the protocol end sends a shape the first version does not parse. */
@@ -98,7 +99,10 @@ function renderSegment(segment, { selfId }) {
       return { text: String(data.text ?? '') };
     case 'at': {
       const qq = String(data.qq ?? '');
-      if (qq === String(selfId)) return { text: '', tagged: true };
+      // A mention of the bot itself must stay visible: with `all messages` rules
+      // nothing else tells the model it was addressed, and stripping the `at`
+      // segment is what made it answer as if nobody had called it.
+      if (qq === String(selfId)) return { text: t('@了你'), tagged: true };
       const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : qq;
       return { text: `@${name}` };
     }
