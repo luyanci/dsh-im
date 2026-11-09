@@ -756,6 +756,11 @@ export function normalizeTelegramUpdate(update, {
       threadId: messageThreadId === undefined ? undefined : String(messageThreadId),
     }),
     senderIsBot: message.from?.is_bot === true && !anonymousSender && !channelSender,
+    // Why this turn woke up: a mention (@username or a reply to its own message).
+    // The bridge turns these into the source block's `mentioned` field, so the
+    // model learns it was called without any text a user could forge.
+    taggedAtSelf: tagged,
+    repliedToBot: String(message.reply_to_message?.from?.id ?? '') === String(botId),
     // Telegram reports the send time in whole seconds; the bridge renders it only
     // when the enhancement scope selects `sentAt`.
     ...(Number.isSafeInteger(message?.date) && message.date >= 0
