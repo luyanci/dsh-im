@@ -360,6 +360,9 @@ for (const channel of CHANNELS) {
           ? { senderName: 'Ada' } : {}),
         ...(channel === 'dingtalk' && kind === 'group' ? { conversationTitle: '钉钉测试群' } : {}),
         ...(channel === 'telegram' && kind === 'group' ? { conversationTitle: 'Telegram群' } : {}),
+        // The Telegram group fixture is addressed by an @mention, which the
+        // runtime now reports as the source block's boolean `mentioned` field.
+        ...(channel === 'telegram' && kind === 'group' ? { mentioned: true } : {}),
         chatId,
         ...(channel === 'slack' && kind === 'group' ? { threadId: 'thread-existing' } : {}),
         botId: `${channel}_internal`,
