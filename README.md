@@ -2,7 +2,7 @@
 
 把 IM 机器人接进 [DeepSeek Harness](https://github.com/xmanrui) 的渠道插件。在 QQ、Telegram、Discord、Slack、微信、飞书、企业微信、钉钉、WhatsApp、iMessage 里和同一个 DSH agent 对话：它跑在你的机器上，工作区、模型、记忆都是你自己的。
 
-本仓库是 [`xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) 的分支，跟上游保持同步（当前基于 v5.10.0），并在此之上维护自己的改动，见[与上游的差异](#与上游的差异)。
+本仓库是 [`xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) 的分支，跟上游保持同步（当前基于 v5.10.0），并在此之上维护自己的改动，见[与上游的差异](#与上游的差异)。上游 README 的原文快照放在 [`docs/upstream/`](docs/upstream/INDEX.md)，根目录这份 README 属于 fork 自己。
 
 ## 快速开始
 
