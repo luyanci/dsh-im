@@ -270,9 +270,11 @@ export class OneBotRuntime {
       + ` ctx=${context ? (context.groupId ? 'group' : 'private') : 'none'}`;
     const via = (route, bytes) => {
       // Which route fed this file is the question every protocol end raises, so
-      // answer it in the log instead of making the next reader re-derive it.
+      // answer it in the log instead of making the next reader re-derive it. The
+      // downloader answers `{ data, mediaType }`, a staged read answers a Buffer.
+      const size = bytes?.data?.length ?? bytes?.length ?? '?';
       this.#logger?.info?.(
-        `[dsh-im:onebot] inbound file via ${route} (${fileName}, ${bytes.length} bytes, ${note})`,
+        `[dsh-im:onebot] inbound file via ${route} (${fileName}, ${size} bytes, ${note})`,
       );
       return bytes;
     };

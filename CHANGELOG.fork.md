@@ -173,6 +173,8 @@ Every release section starts with a single line naming the upstream version it i
   Every inbound OneBot file load now logs which route fed it: `inbound file via private-file-url / group-file-url /
   get-file-url / staged-path / base64 (name, N bytes)`, plus a line when a url action is refused or answers without an
   http url. Answering "did it use get_*_file_url" no longer requires guessing.
+  The byte count reads the downloader's `{ data, mediaType }` shape as well as a
+  staged Buffer, so the line never prints `undefined`.
 
 - OneBot 的管理端点表改成**组合共享表**（与 Telegram 同构）：`ONEBOT_ENDPOINTS` 现在展开
   `TOKEN_BOT_ENDPOINTS`，只有 add-bot、监听设置、群聊规则这些专属端点自己处理，其余交给共享处理器。
