@@ -67,6 +67,13 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Fixed / 修复
 
+- NapCat 的 `get_private_file_url` / `get_group_file_url` 一开始**根本没被调用**：加载器的包装函数把第三个参数
+  （会话上下文）吞了，于是每次加载都是 `ctx=none`，扩展接口因缺少 `user_id`/`group_id` 被跳过，只能退回本地路径。
+  现已透传上下文，文件加载日志里的 `id=/ctx=` 正好能看出这一层。这条日志本身也是为定位它加的。
+  NapCat's `get_private_file_url` / `get_group_file_url` were never called at first: the loader wrapper swallowed its
+  third argument (the conversation), so every load reported `ctx=none` and the extensions were skipped for want of a
+  `user_id`/`group_id`, leaving only the staged path. The context is passed through now, and the `id=`/`ctx=` trail in
+  the load line is what exposed it in the first place.
 - OneBot 入站文件（NapCat）修好了：NapCat 的 `file` / `video` / `record` 段**不带 `url`**，只有 `file` 与 `file_id`；
   而它的 `get_file` 返回的 `url` 其实是**本地路径**（`C:\…\NapCat\temp\…`），不是 http 链接。此前图片能进（图片段带
   http url），其他文件一律在准备 prompt 时失败。现在按「有 http url 直接下 → 否则 `get_file` 解析 → 读本地路径
