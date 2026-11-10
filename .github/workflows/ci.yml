@@ -5,7 +5,10 @@ on:
     branches:
       - main
       - 'feishu-*'
+    tags:
+      - 'v*'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -54,3 +57,66 @@ jobs:
           test/conversation-workspace-bind-recovery.test.mjs
           test/preset-workspaces.test.mjs
           test/channels/shared/qr-encoding.test.mjs
+
+  publish-gh-packages:
+    name: Publish to GitHub Packages
+    # Every push to main publishes a dev snapshot; a v* tag publishes a release.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: '@luyanci'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build bundles
+        run: npm run build
+
+      - name: Verify package contents
+        run: node scripts/verify-package.mjs
+
+      - name: Decide version and dist-tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+            tag=latest
+          else
+            # A dev snapshot never reuses a version: the timestamp keeps two
+            # pushes in the same minute apart, and the sha names the commit.
+            stamp="$(date -u +%Y%m%d%H%M)"
+            version="${base}-dev.${stamp}.${GITHUB_SHA:0:7}"
+            tag=dev
+          fi
+          npm pkg set "version=${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "publishing ${version} with dist-tag ${tag}"
+
+      - name: Publish
+        # The same tarball `npm pack` would produce; provenance off because
+        # GitHub Packages does not verify it the way npmjs.com does.
+        run: >-
+          npm publish --registry=https://npm.pkg.github.com --provenance=false
+          --tag "${{ steps.version.outputs.tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
