@@ -256,9 +256,18 @@ export class OneBotRuntime {
    * prompt preparation. Resolve the id, then read whichever form comes back.
    */
   async #downloadFile(data, options = {}, context = null) {
+    const fileName = typeof data?.file === 'string' && data.file ? data.file : 'file';
+    const via = (route, bytes) => {
+      // Which route fed this file is the question every protocol end raises, so
+      // answer it in the log instead of making the next reader re-derive it.
+      this.#logger?.info?.(
+        `[dsh-im:onebot] inbound file via ${route} (${fileName}, ${bytes.length} bytes)`,
+      );
+      return bytes;
+    };
     const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
       ? data.url : undefined;
-    if (direct !== undefined) return this.#loadImage(direct, options);
+    if (direct !== undefined) return via('segment-url', await this.#loadImage(direct, options));
     const session = this.#session;
     const identifier = typeof data?.file_id === 'string' && data.file_id
       ? data.file_id
@@ -273,9 +282,15 @@ export class OneBotRuntime {
           ? await api.getGroupFileUrl(context.groupId, identifier)
           : await api.getPrivateFileUrl(context.userId, identifier);
         const url = typeof resolvedUrl?.url === 'string' ? resolvedUrl.url : '';
-        if (/^https?:\/\//i.test(url)) return await this.#loadImage(url, options);
-      } catch {
+        if (/^https?:\/\//i.test(url)) {
+          return via(context.groupId ? 'group-file-url' : 'private-file-url', await this.#loadImage(url, options));
+        }
+        this.#logger?.info?.(`[dsh-im:onebot] file url action returned no http url for ${fileName}`);
+      } catch (error) {
         // Refused or unimplemented here: fall through to get_file.
+        this.#logger?.info?.(
+          `[dsh-im:onebot] file url action unavailable for ${fileName}: ${error?.message ?? error}`,
+        );
       }
     }
     let resolved = data;
@@ -286,7 +301,7 @@ export class OneBotRuntime {
       });
     }
     const url = typeof resolved?.url === 'string' ? resolved.url : '';
-    if (/^https?:\/\//i.test(url)) return this.#loadImage(url, options);
+    if (/^https?:\/\//i.test(url)) return via('get-file-url', await this.#loadImage(url, options));
     // A staged local path is cheaper than a base64 payload, so prefer it even
     // when get_file sends both (NapCat does once "local file to url" is on).
     const staged = typeof resolved?.file === 'string' && resolved.file
@@ -299,10 +314,10 @@ export class OneBotRuntime {
         const info = await stat(staged);
         if (info.size > maxBytes) throw new Error(`OneBot file is ${info.size} bytes; the limit is ${maxBytes}`);
       }
-      return readFile(staged);
+      return via('staged-path', await readFile(staged));
     }
     if (typeof resolved?.base64 === 'string' && resolved.base64) {
-      return Buffer.from(resolved.base64, 'base64');
+      return via('base64', Buffer.from(resolved.base64, 'base64'));
     }
     throw new Error('OneBot file segment has no download url and get_file returned none');
   }
