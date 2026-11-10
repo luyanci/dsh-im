@@ -257,22 +257,26 @@ export class OneBotRuntime {
    */
   async #downloadFile(data, options = {}, context = null) {
     const fileName = typeof data?.file === 'string' && data.file ? data.file : 'file';
+    const session = this.#session;
+    const identifier = typeof data?.file_id === 'string' && data.file_id
+      ? data.file_id
+      : (typeof data?.file === 'string' && data.file ? data.file : undefined);
+    const api = session === null || session === undefined ? null : this.#createApi(session);
+    // Why a url action was skipped matters as much as the route itself: a
+    // missing id or a missing conversation both fall straight to get_file.
+    const note = `id=${identifier === undefined ? 'no' : 'yes'}`
+      + ` ctx=${context ? (context.groupId ? 'group' : 'private') : 'none'}`;
     const via = (route, bytes) => {
       // Which route fed this file is the question every protocol end raises, so
       // answer it in the log instead of making the next reader re-derive it.
       this.#logger?.info?.(
-        `[dsh-im:onebot] inbound file via ${route} (${fileName}, ${bytes.length} bytes)`,
+        `[dsh-im:onebot] inbound file via ${route} (${fileName}, ${bytes.length} bytes, ${note})`,
       );
       return bytes;
     };
     const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
       ? data.url : undefined;
     if (direct !== undefined) return via('segment-url', await this.#loadImage(direct, options));
-    const session = this.#session;
-    const identifier = typeof data?.file_id === 'string' && data.file_id
-      ? data.file_id
-      : (typeof data?.file === 'string' && data.file ? data.file : undefined);
-    const api = session === null || session === undefined ? null : this.#createApi(session);
     // NapCat extensions hand back a real http url, which works even when the
     // staged file is outside this machine's view. A failed download (expired
     // rkey, CDN error) falls through to get_file instead of failing the turn.
