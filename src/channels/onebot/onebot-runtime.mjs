@@ -120,7 +120,9 @@ export class OneBotRuntime {
     // Inbound media comes from signed urls the protocol end attaches; without a
     // downloader both images and files would fail at prompt preparation.
     this.#loadImage = loadImage ?? downloadOneBotMedia;
-    this.#loadFile = (data, options) => this.#downloadFile(data, options);
+    // The conversation travels as the third argument: the url extensions need
+    // it, and dropping it here is what made every load report ctx=none.
+    this.#loadFile = (data, options, context) => this.#downloadFile(data, options, context);
     this.#status = status;
   }
 
