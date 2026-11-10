@@ -273,22 +273,24 @@ export class OneBotRuntime {
     }
     const url = typeof resolved?.url === 'string' ? resolved.url : '';
     if (/^https?:\/\//i.test(url)) return this.#loadImage(url, options);
-    if (typeof resolved?.base64 === 'string' && resolved.base64) {
-      return Buffer.from(resolved.base64, 'base64');
-    }
+    // A staged local path is cheaper than a base64 payload, so prefer it even
+    // when get_file sends both (NapCat does once "local file to url" is on).
     const staged = typeof resolved?.file === 'string' && resolved.file
       ? resolved.file
       : (/^(?:[A-Za-z]:[\\/]|\/)/.test(url) ? url : '');
-    if (!staged) {
-      throw new Error('OneBot file segment has no download url and get_file returned none');
+    if (staged) {
+      const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+        ? options.maxBytes : undefined;
+      if (maxBytes !== undefined) {
+        const info = await stat(staged);
+        if (info.size > maxBytes) throw new Error(`OneBot file is ${info.size} bytes; the limit is ${maxBytes}`);
+      }
+      return readFile(staged);
     }
-    const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
-      ? options.maxBytes : undefined;
-    if (maxBytes !== undefined) {
-      const info = await stat(staged);
-      if (info.size > maxBytes) throw new Error(`OneBot file is ${info.size} bytes; the limit is ${maxBytes}`);
+    if (typeof resolved?.base64 === 'string' && resolved.base64) {
+      return Buffer.from(resolved.base64, 'base64');
     }
-    return readFile(staged);
+    throw new Error('OneBot file segment has no download url and get_file returned none');
   }
 
   async #loadReply(messageId) {

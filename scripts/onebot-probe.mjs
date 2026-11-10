@@ -34,6 +34,7 @@ const sendText = arg('send-text', '')
 const getMsg = arg('get-msg', '')
 const getFile = arg('get-file', '')
 const getFileName = arg('get-file-name', '')
+const resolveFiles = args.includes('--resolve-files')
 
 const logFile = arg('log', '.onebot-probe.jsonl')
 const started = new Date().toISOString()
@@ -144,6 +145,21 @@ wss.on('connection', (ws, req) => {
     })
     console.log(`[event] ${type} ${frame.message_type ?? ''} group=${frame.group_id ?? '-'} segs=${segments.map((s) => s?.type).join(',') || '-'}`)
     if (images.length > 0) console.log('        image segments:', JSON.stringify(images))
+
+    // Resolve an inbound file the way the channel must: no url here, so ask
+    // get_file and see what shape comes back on this protocol end.
+    if (resolveFiles && type === 'message') {
+      for (const segment of segments) {
+        if (segment?.type !== 'file' && segment?.type !== 'video' && segment?.type !== 'record') continue;
+        const data = segment?.data ?? {};
+        console.log('        file segment:', JSON.stringify(data).slice(0, 400));
+        void action(ws, 'get_file', { file_id: data.file_id, file: data.file })
+          .then((got) => {
+            console.log('[get_file]', JSON.stringify(got?.data ?? got).slice(0, 900));
+            record('get-file-probe', { fileId: data.file_id ?? '', segment: data, response: got?.data ?? got });
+          })
+      }
+    }
 
     if (type === 'meta_event') {
       record('meta-event', { detail: frame.meta_event_type, raw: frame })
