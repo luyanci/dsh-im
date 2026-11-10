@@ -18,6 +18,24 @@ npm install @luyanci/dsh-im
 
 要求：Node.js ≥ 22.19，DSH ≥ 0.2.1-rc.2。
 
+### 开发版（GitHub Packages）
+
+正式版走 npm；**每次 push 到 main 的构建**会作为开发快照发到 GitHub Packages，dist-tag 是 `dev`，版本形如
+`5.11.3-dev.202611101533.2922095`（时间戳 + 提交短号）。想试最新改动、或复现某个提交时用它。
+
+```bash
+# 一次性登录（密码填带 read:packages 的 GitHub PAT）
+npm login --registry=https://npm.pkg.github.com
+
+# 最新开发快照
+dsh plugin add @luyanci/dsh-im@dev --registry=https://npm.pkg.github.com
+
+# 或者钉死某个快照
+npm install @luyanci/dsh-im@5.11.3-dev.202611101533.2922095 --registry=https://npm.pkg.github.com
+```
+
+打 `v*` 标签时同一条流水线会发 `latest`，所以正式发布后 `@dev` 仍然指向最新的 main 构建，两者互不覆盖。
+
 ## 支持的渠道
 
 | 渠道 | 接入方式 | 备注 |
