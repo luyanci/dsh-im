@@ -27,6 +27,14 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Added / 新增
 
+- CI 新增 GitHub Packages 发布：**每次 push 到 main**（check 通过后）发一条开发快照
+  `<版本>-dev.<UTC 时间戳>.<提交短号>`，dist-tag 为 `dev`；打 `v*` 标签时同一条流水线用标签里的版本发 `latest`，
+  也可以手动 `workflow_dispatch` 补发。开发版因此能直接用 `dsh plugin add @luyanci/dsh-im@dev` 安装，或按版本号
+  钉死某个提交，不必再本地打包。
+  CI now publishes to GitHub Packages: every push to main (after the check job passes) ships a dev snapshot named
+  `<version>-dev.<UTC stamp>.<short sha>` under the `dev` dist-tag, while a `v*` tag publishes that version as `latest`;
+  `workflow_dispatch` can publish on demand. Dev builds are therefore installable with
+  `dsh plugin add @luyanci/dsh-im@dev`, or pinned per commit, without packing locally.
 - OneBot 入站文件优先走 NapCat 的 URL 扩展接口：`get_private_file_url` / `get_group_file_url`（群文件 `busid` 默认 102）
   会返回真正的 http 下载链接，比读本地临时文件更通用（协议端与 DSH 不在同一台机器时也能用）；接口不存在、拒绝
   或下载失败（rkey 过期等）时自动退回 `get_file` 的本地路径 / `base64`，不影响其他协议端。
