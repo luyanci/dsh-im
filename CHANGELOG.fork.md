@@ -62,12 +62,15 @@ Every release section starts with a single line naming the upstream version it i
 
 - OneBot 入站文件（NapCat）修好了：NapCat 的 `file` / `video` / `record` 段**不带 `url`**，只有 `file` 与 `file_id`；
   而它的 `get_file` 返回的 `url` 其实是**本地路径**（`C:\…\NapCat\temp\…`），不是 http 链接。此前图片能进（图片段带
-  http url），其他文件一律在准备 prompt 时失败。现在按「有 http url 直接下 → 否则 `get_file` 解析 → `base64` 解码
-  或读本地路径」的顺序加载，并复用同一份大小上限。
+  http url），其他文件一律在准备 prompt 时失败。现在按「有 http url 直接下 → 否则 `get_file` 解析 → 读本地路径
+  → `base64` 解码」的顺序加载，并复用同一份大小上限。协议端的「启用本地文件到 url」开关不会把 `url` 变成 http，
+  只是额外附上 `base64`；两种形态都实测过，本地路径优先（比解几 MB 的 base64 便宜）。
   OneBot inbound files now work with NapCat: its `file` / `video` / `record` segments carry **no url**, only `file`
   and `file_id`, and its `get_file` action answers with a **local path** in `url` rather than an http link. Images
   arrived because image segments do carry an http url; every other file failed while preparing the prompt. Loading now
-  goes http url → `get_file` → `base64` or a local read, under the same size cap.
+  goes http url → `get_file` → a staged local read → `base64`, under the same size cap. The protocol end's
+  "local file to url" switch does not turn `url` into http; it only adds a `base64` payload. Both shapes were
+  measured live, and the staged path wins because decoding megabytes of base64 is the more expensive route.
 - 失败参考号现在会落盘：每次「处理消息 / 命令 / 批输入」失败，都会往 `<DSH_HOME>/.dsh-im/failures.jsonl`
   追加一行 JSON（`referenceId`、`code`、`reason`、`channel`、`at`、分类详情）。此前 `MF-…` 只出现在 stdout，
   而 DSH Desktop 不抓 stdout——用户把引用号发回来时磁盘上什么都搜不到。文件超过 2 MB 轮转一次（保留 `.1`），
