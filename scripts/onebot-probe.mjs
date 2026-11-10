@@ -158,6 +158,15 @@ wss.on('connection', (ws, req) => {
             console.log('[get_file]', JSON.stringify(got?.data ?? got).slice(0, 900));
             record('get-file-probe', { fileId: data.file_id ?? '', segment: data, response: got?.data ?? got });
           })
+        // NapCat extensions: a real http url instead of the staged local path.
+        const urlParams = frame.group_id
+          ? { action: 'get_group_file_url', params: { group_id: Number(frame.group_id), file_id: data.file_id, busid: 102 } }
+          : { action: 'get_private_file_url', params: { user_id: Number(frame.user_id), file_id: data.file_id } };
+        void action(ws, urlParams.action, urlParams.params)
+          .then((got) => {
+            console.log(`[${urlParams.action}]`, JSON.stringify(got?.data ?? got).slice(0, 500));
+            record('file-url-probe', { action: urlParams.action, response: got?.data ?? got, status: got?.status });
+          })
       }
     }
 

@@ -27,6 +27,13 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Added / 新增
 
+- OneBot 入站文件优先走 NapCat 的 URL 扩展接口：`get_private_file_url` / `get_group_file_url`（群文件 `busid` 默认 102）
+  会返回真正的 http 下载链接，比读本地临时文件更通用（协议端与 DSH 不在同一台机器时也能用）；接口不存在、拒绝
+  或下载失败（rkey 过期等）时自动退回 `get_file` 的本地路径 / `base64`，不影响其他协议端。
+  Inbound OneBot files prefer NapCat's URL extensions: `get_private_file_url` / `get_group_file_url` (group files
+  default to `busid` 102) return a real http link, which also works when the protocol end is not on this machine. If
+  the action is missing, refused, or the download fails (an expired rkey), loading falls back to `get_file`'s local
+  path or `base64`, so other protocol ends are unaffected.
 - 上下文增强新增字段 `mentioned`：消息是「@ 了机器人」或「回复机器人」触发时，`<dsh_im_source>` 块里会出现
   `"mentioned":true`；未提及时整个字段省略（不写 false）。字段从协议结构（`at` 段比对 selfId、引用解析）取值，
   走签名通道，用户正文里手打任何字样都伪造不了。之前的临时做法「正文插入 `@了你`」已回退——那是可伪造的纯文本。

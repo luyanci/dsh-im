@@ -255,7 +255,7 @@ export class OneBotRuntime {
    * (which does carry an http url) arrived while every other file "exploded" at
    * prompt preparation. Resolve the id, then read whichever form comes back.
    */
-  async #downloadFile(data, options = {}) {
+  async #downloadFile(data, options = {}, context = null) {
     const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
       ? data.url : undefined;
     if (direct !== undefined) return this.#loadImage(direct, options);
@@ -263,9 +263,23 @@ export class OneBotRuntime {
     const identifier = typeof data?.file_id === 'string' && data.file_id
       ? data.file_id
       : (typeof data?.file === 'string' && data.file ? data.file : undefined);
+    const api = session === null || session === undefined ? null : this.#createApi(session);
+    // NapCat extensions hand back a real http url, which works even when the
+    // staged file is outside this machine's view. A failed download (expired
+    // rkey, CDN error) falls through to get_file instead of failing the turn.
+    if (api !== null && identifier !== undefined && context) {
+      try {
+        const resolvedUrl = context.groupId
+          ? await api.getGroupFileUrl(context.groupId, identifier)
+          : await api.getPrivateFileUrl(context.userId, identifier);
+        const url = typeof resolvedUrl?.url === 'string' ? resolvedUrl.url : '';
+        if (/^https?:\/\//i.test(url)) return await this.#loadImage(url, options);
+      } catch {
+        // Refused or unimplemented here: fall through to get_file.
+      }
+    }
     let resolved = data;
-    if (session !== null && session !== undefined && identifier !== undefined) {
-      const api = this.#createApi(session);
+    if (api !== null && identifier !== undefined) {
       resolved = await api.getFile({
         file_id: identifier,
         ...(typeof data?.file === 'string' && data.file ? { file: data.file } : {}),

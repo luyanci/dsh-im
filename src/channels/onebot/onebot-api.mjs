@@ -127,6 +127,22 @@ export function createOneBotApi(session) {
     getFile: (params) => session.request('get_file', params),
 
     /**
+     * NapCat extensions that turn a file id into a real http url (the standard
+     * `get_file` answers with a staged local path). Both reject on protocol ends
+     * that never implemented them, so callers fall back to `get_file`.
+     */
+    getPrivateFileUrl: (userId, fileId) => session.request('get_private_file_url', {
+      user_id: Number(userId),
+      file_id: fileId,
+    }),
+
+    getGroupFileUrl: (groupId, fileId, busid = 102) => session.request('get_group_file_url', {
+      group_id: Number(groupId),
+      file_id: fileId,
+      busid,
+    }),
+
+    /**
      * Upload a file into a group. `file` accepts a path, an http url or a
      * `base64://` payload; `name` is what the group member sees.
      */

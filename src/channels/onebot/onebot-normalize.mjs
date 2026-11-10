@@ -67,7 +67,7 @@ function isSelfEcho(event, selfId) {
  * from the signed url the event carries. The url expires, so it is never stored
  * beyond the closure.
  */
-export function oneBotFileSource(segment, { loadFile } = {}) {
+export function oneBotFileSource(segment, { loadFile, context } = {}) {
   const data = segment?.data ?? {};
   const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : undefined;
   // NapCat sends files with a file id and no url; `get_file` resolves it later.
@@ -84,11 +84,11 @@ export function oneBotFileSource(segment, { loadFile } = {}) {
     name,
     ...(declaredMediaType ? { mediaType: declaredMediaType } : mediaTypeOf(name) ? { mediaType: mediaTypeOf(name) } : {}),
     size: Number.isFinite(Number(data.file_size)) ? Number(data.file_size) : undefined,
-    // The whole segment travels: a loader may need the file id when the url is
-    // absent, so it cannot be reduced to a url string here.
+    // The segment plus the conversation travel together: a loader may need the
+    // file id (and the chat it belongs to) when the segment carries no url.
     load: (options) => {
       if (typeof loadFile !== 'function') throw new Error('OneBot file downloader is unavailable');
-      return loadFile({ ...data, ...(url === undefined ? {} : { url }) }, options);
+      return loadFile({ ...data, ...(url === undefined ? {} : { url }) }, options, context);
     },
   };
 }
@@ -315,6 +315,9 @@ export function normalizeOneBotEvent(event, {
   let replyToId;
   const images = [];
   const files = [];
+  // Which conversation a file belongs to: NapCat's file-url actions need it, and
+  // the loader runs later, when the frame itself is gone.
+  const fileContext = { userId: String(senderId), groupId: direct ? undefined : String(chatId) };
   for (const segment of event.message) {
     const rendered = renderSegment(segment, { selfId });
     text += rendered.text ?? '';
@@ -325,9 +328,10 @@ export function normalizeOneBotEvent(event, {
       if (source !== null) images.push(source);
     }
     if (rendered.file !== undefined) {
-      // A file without a signed url cannot be fetched; keep the mention so the
-      // model still learns something arrived.
-      const source = oneBotFileSource(rendered.file, { loadFile: loadFile ?? loadImage });
+      const source = oneBotFileSource(rendered.file, {
+        loadFile: loadFile ?? loadImage,
+        context: fileContext,
+      });
       if (source !== null) files.push(source);
       else if (rendered.file?.data?.file) text += `[文件 ${rendered.file.data.file}]`;
     }
