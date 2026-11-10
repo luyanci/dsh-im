@@ -14,8 +14,12 @@ import {
   normalizeOneBotEvent,
   oneBotAddressedForQuote,
   oneBotApiGroupList,
+  oneBotUnhandledFrameKind,
   oneBotQuotedReference,
 } from './onebot-normalize.mjs';
+
+/** How often one unhandled frame kind may be named in the log. */
+const UNHANDLED_FRAME_LOG_WINDOW_MS = 10 * 60 * 1000;
 
 /** Convenience factory; the class stays exported for callers that subclass. */
 export function createOneBotRuntime(options) {
@@ -61,6 +65,9 @@ export class OneBotRuntime {
   #bot = null;
 
   #lastTarget = null;
+
+  /** kind → last time it was named in the log, so one shape cannot spam. */
+  #ignoredFrames = new Map();
 
   #loadImage;
 
@@ -270,8 +277,29 @@ export class OneBotRuntime {
     return message;
   }
 
+  /**
+   * Frames an adapter sends that are not a chat message: its own echoes
+   * (`message_sent`), notices such as a group file upload, and meta events.
+   *
+   * They are dropped on purpose, but silently dropping them made a protocol end
+   * that pushes a new shape look like "the bot received something it does not
+   * understand". Each kind is named once per window instead, so the next new
+   * event can be identified from the log without enabling debug logging.
+   */
+  #noteUnhandledFrame(frame) {
+    const kind = oneBotUnhandledFrameKind(frame);
+    const previous = this.#ignoredFrames.get(kind) ?? 0;
+    if (Date.now() - previous < UNHANDLED_FRAME_LOG_WINDOW_MS) return;
+    this.#ignoredFrames.set(kind, Date.now());
+    this.#logger?.info?.(`[dsh-im:onebot] ignored frame ${kind}`);
+  }
+
   #onFrame(frame) {
     if (this.#stopped || this.#bridge === null) return;
+    if (frame?.post_type !== 'message') {
+      this.#noteUnhandledFrame(frame);
+      return;
+    }
     let message;
     try {
       message = normalizeOneBotEvent(frame, {
@@ -288,6 +316,25 @@ export class OneBotRuntime {
       return;
     }
     if (!message) return;
+    // A frame NapCat/NapCat-like ends push that carries no text, media or quote
+    // (an unknown segment, a system record) cannot become a turn; answering it
+    // used to fall through to the bridge's "text, images and files only" reply.
+    // Name the segment kinds once and drop it instead.
+    if (!String(message.content ?? '').trim()
+      && (message.images ?? []).length === 0 && (message.files ?? []).length === 0
+      && message.replyTo === undefined) {
+      const kinds = [...new Set((Array.isArray(frame?.message) ? frame.message : [])
+        .map((segment) => String(segment?.type ?? 'unknown')))].join(',') || 'none';
+      const key = `content-less:${kinds}`;
+      if (Date.now() - (this.#ignoredFrames.get(key) ?? 0) >= UNHANDLED_FRAME_LOG_WINDOW_MS) {
+        this.#ignoredFrames.set(key, Date.now());
+        this.#logger?.info?.(
+          `[dsh-im:onebot] dropped a content-less message (segments=${kinds}); `
+          + 'NapCat turns QQ gray tips such as a file receipt into an empty message',
+        );
+      }
+      return;
+    }
     // Remember the origin so the connect check has somewhere to send its test.
     if (message.replyTarget) this.#lastTarget = { ...message.replyTarget };
     void this.#addressedForQuote(message)

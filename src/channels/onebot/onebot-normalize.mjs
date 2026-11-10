@@ -15,6 +15,25 @@
  */
 import { groupTriggerAddressed } from '../telegram/group-triggers.mjs';
 
+/**
+ * Name the frames the channel deliberately does not turn into a message.
+ *
+ * A protocol end may start pushing a shape this channel has no use for — its own
+ * echoes, a group file upload notice, lifecycle meta events. Naming the kind is
+ * what makes "the bot received something it does not understand" diagnosable
+ * without enabling debug logging, while the payload stays out of the log.
+ */
+export function oneBotUnhandledFrameKind(frame) {
+  if (frame === null || typeof frame !== 'object') return 'unknown';
+  if (frame.post_type === 'notice') {
+    return `notice.${String(frame.notice_type ?? 'unknown')}`;
+  }
+  if (frame.post_type === 'meta_event') {
+    return `meta_event.${String(frame.meta_event_type ?? 'unknown')}`;
+  }
+  return String(frame.post_type ?? 'unknown');
+}
+
 /** Raised when the protocol end sends a shape the first version does not parse. */
 export class OneBotFormatError extends Error {
   constructor(message, code) {

@@ -60,6 +60,15 @@ Every release section starts with a single line naming the upstream version it i
 
 ### Fixed / 修复
 
+- OneBot（NapCat）会把 QQ 的灰字提示——例如文件收发回执——转成一条 `post_type: "message"`、`message: []` 的空消息。
+  它没有正文、媒体和引用，过去会一路走到桥接层，让机器人回一句「目前支持文字、图片和文件消息。」。现在这类消息
+  在进入桥接层之前就被丢掉，并记一行 `dropped a content-less message (segments=none)`（同类 10 分钟限频）；
+  非消息帧（`notice.group_upload`、`message_sent` 等）也会被记一次名字，方便下次认出协议端新增的推送。
+  NapCat turns QQ gray tips — a file transfer receipt, for instance — into a `post_type: "message"` frame with an
+  empty `message` array. With no text, media or quote it used to reach the bridge, which answered "text, images and
+  files only". Such a frame is now dropped before the bridge and logged as `dropped a content-less message
+  (segments=none)` (once per kind per ten minutes); non-message frames such as `notice.group_upload` or
+  `message_sent` are also named once, so a new push shape is identifiable next time.
 - `sentAt` 现在在 Telegram 和 OneBot 上也能用：两者分别从消息的 `date` / 事件 `time`（秒）取时刻，交给桥接层
   按需渲染；此前后者只有微信实现了，勾了也不会出现。同时 `channel` 字段的允许列表补上 `onebot`、`matrix`、
   `imessage`、`email`、`wecom-app`——之前 OneBot 的块里根本没有 `channel`，就是这个列表漏了它。

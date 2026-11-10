@@ -5,6 +5,7 @@ import {
   normalizeOneBotEvent,
   oneBotApiGroupList,
   oneBotQuotedReference,
+  oneBotUnhandledFrameKind,
   OneBotFormatError,
 } from '../../../src/channels/onebot/onebot-normalize.mjs';
 
@@ -231,6 +232,17 @@ test('get_group_list becomes the settings page group options', () => {
   ]);
   assert.deepEqual(oneBotApiGroupList({ not: 'an array' }), []);
   assert.deepEqual(oneBotApiGroupList(undefined), []);
+});
+
+test('unhandled frames are named by kind so a new shape is diagnosable', () => {
+  // NapCat pushes a group file upload as a notice and the bot's own upload as a
+  // message_sent echo; neither is a chat message, but "the bot received something
+  // it does not understand" must be answerable from the log.
+  assert.equal(oneBotUnhandledFrameKind({ post_type: 'notice', notice_type: 'group_upload' }), 'notice.group_upload');
+  assert.equal(oneBotUnhandledFrameKind({ post_type: 'message_sent', message_type: 'group' }), 'message_sent');
+  assert.equal(oneBotUnhandledFrameKind({ post_type: 'meta_event', meta_event_type: 'heartbeat' }), 'meta_event.heartbeat');
+  assert.equal(oneBotUnhandledFrameKind({}), 'unknown');
+  assert.equal(oneBotUnhandledFrameKind(null), 'unknown');
 });
 
 test('a deleted quote is null, an unreadable one is unsupported', () => {
