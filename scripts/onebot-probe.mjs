@@ -32,6 +32,8 @@ const sendGroup = arg('send-group', '')
 const sendUser = arg('send-user', '')
 const sendText = arg('send-text', '')
 const getMsg = arg('get-msg', '')
+const getFile = arg('get-file', '')
+const getFileName = arg('get-file-name', '')
 
 const logFile = arg('log', '.onebot-probe.jsonl')
 const started = new Date().toISOString()
@@ -153,10 +155,16 @@ wss.on('connection', (ws, req) => {
     console.log(`[closed] code=${code}`)
   })
 
-  if (getMsg || sendText) {
+  if (getMsg || sendText || getFile) {
     setTimeout(async () => {
       const info = await action(ws, 'get_login_info', {})
       console.log('[get_login_info]', JSON.stringify(info?.data ?? info))
+      if (getFile) {
+        // What a `file` segment looks like without a url: NapCat answers here.
+        const got = await action(ws, 'get_file', { file_id: getFile, file: getFileName })
+        console.log('[get_file]', JSON.stringify(got?.data ?? got).slice(0, 900))
+        record('get-file-probe', { fileId: getFile, response: got?.data ?? got })
+      }
       if (getMsg) {
         const got = await action(ws, 'get_msg', { message_id: Number(getMsg) })
         console.log('[get_msg]', JSON.stringify(got?.data ?? got).slice(0, 600))

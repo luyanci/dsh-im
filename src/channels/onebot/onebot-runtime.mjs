@@ -6,6 +6,7 @@
  * client the bridge already holds. The protocol end owns reconnection, so a
  * disconnect only flips the status back to "listening" and waits.
  */
+import { readFile, stat } from 'node:fs/promises';
 import { createOneBotApi, downloadOneBotMedia } from './onebot-api.mjs';
 import { createOneBotBotClient } from './onebot-bot.mjs';
 import { createOneBotBridgeStatus, OneBotHarnessBridge } from './onebot-bridge.mjs';
@@ -71,6 +72,9 @@ export class OneBotRuntime {
 
   #loadImage;
 
+  /** `file`/`file_id` → the bytes NapCat staged locally (see #loadFile). */
+  #loadFile;
+
   #status;
 
   #server = null;
@@ -116,6 +120,7 @@ export class OneBotRuntime {
     // Inbound media comes from signed urls the protocol end attaches; without a
     // downloader both images and files would fail at prompt preparation.
     this.#loadImage = loadImage ?? downloadOneBotMedia;
+    this.#loadFile = (data, options) => this.#downloadFile(data, options);
     this.#status = status;
   }
 
@@ -241,6 +246,51 @@ export class OneBotRuntime {
    * only the id, so without this the reply block reaches the model as
    * `not-delivered` even though the message exists.
    */
+  /**
+   * Bytes for an inbound `file`/`video`/`record` segment.
+   *
+   * NapCat sends those segments with **no url**: the frame carries only `file`
+   * and `file_id`, and its `get_file` action answers with a **local path** in
+   * `url` (plus the same path in `file`), not an http link. That is why an image
+   * (which does carry an http url) arrived while every other file "exploded" at
+   * prompt preparation. Resolve the id, then read whichever form comes back.
+   */
+  async #downloadFile(data, options = {}) {
+    const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
+      ? data.url : undefined;
+    if (direct !== undefined) return this.#loadImage(direct, options);
+    const session = this.#session;
+    const identifier = typeof data?.file_id === 'string' && data.file_id
+      ? data.file_id
+      : (typeof data?.file === 'string' && data.file ? data.file : undefined);
+    let resolved = data;
+    if (session !== null && session !== undefined && identifier !== undefined) {
+      const api = this.#createApi(session);
+      resolved = await api.getFile({
+        file_id: identifier,
+        ...(typeof data?.file === 'string' && data.file ? { file: data.file } : {}),
+      });
+    }
+    const url = typeof resolved?.url === 'string' ? resolved.url : '';
+    if (/^https?:\/\//i.test(url)) return this.#loadImage(url, options);
+    if (typeof resolved?.base64 === 'string' && resolved.base64) {
+      return Buffer.from(resolved.base64, 'base64');
+    }
+    const staged = typeof resolved?.file === 'string' && resolved.file
+      ? resolved.file
+      : (/^(?:[A-Za-z]:[\\/]|\/)/.test(url) ? url : '');
+    if (!staged) {
+      throw new Error('OneBot file segment has no download url and get_file returned none');
+    }
+    const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+      ? options.maxBytes : undefined;
+    if (maxBytes !== undefined) {
+      const info = await stat(staged);
+      if (info.size > maxBytes) throw new Error(`OneBot file is ${info.size} bytes; the limit is ${maxBytes}`);
+    }
+    return readFile(staged);
+  }
+
   async #loadReply(messageId) {
     const session = this.#session;
     if (session === null || session === undefined) return null;
@@ -306,7 +356,7 @@ export class OneBotRuntime {
         selfId: this.#session?.selfId ?? this.#config.selfId,
         groupTriggers: this.#config.groupTriggers,
         loadImage: this.#loadImage,
-        loadFile: this.#loadImage,
+        loadFile: this.#loadFile,
         loadReply: (messageId, options) => this.#loadReply(messageId, options),
       });
     } catch (error) {

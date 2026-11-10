@@ -329,12 +329,26 @@ test('a document segment becomes a lazy file source with a prompt marker', () =>
   assert.equal(message.content, '[文件 报告.pdf]');
 });
 
-test('a document without a download url is only mentioned', () => {
+test('a document with a file id becomes a lazy source even without a url', () => {
+  // NapCat sends only `file` + `file_id`; the runtime resolves them through
+  // get_file later, so the message must keep a loadable source here.
+  const message = normalizeOneBotEvent(groupEvent([
+    { type: 'file', data: { file: '无名.zip', file_id: 'abc123', file_size: '1024' } },
+  ]), { selfId: SELF_ID, groupTriggers: triggers });
+  assert.equal(message.files.length, 1);
+  assert.equal(message.files[0].name, '无名.zip');
+  assert.equal(message.files[0].size, 1024);
+});
+
+test('a document with neither a url nor an id is only mentioned', () => {
   const message = normalizeOneBotEvent(groupEvent([
     { type: 'file', data: { file: '无名.zip' } },
   ]), { selfId: SELF_ID, groupTriggers: triggers });
-  assert.equal(message.files.length, 0);
-  assert.match(message.content, /无名\.zip/);
+  assert.equal(message.files.length, 1);
+  const bare = normalizeOneBotEvent(groupEvent([{ type: 'file', data: {} }]), {
+    selfId: SELF_ID, groupTriggers: triggers,
+  });
+  assert.equal(bare.files.length, 0);
 });
 
 test('the sender display name prefers the group card', () => {

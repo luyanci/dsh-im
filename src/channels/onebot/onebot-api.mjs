@@ -118,6 +118,15 @@ export function createOneBotApi(session) {
     getGroupList: () => session.request('get_group_list'),
 
     /**
+     * Resolve a file a message pointed at but did not inline a url for.
+     *
+     * OneBot v11 `get_file` answers with `{ file, url?, base64?, file_size,
+     * file_name }`. NapCat sends group/private file segments without `url`, so
+     * callers hand its `file_id` (or `file`) here instead of guessing a path.
+     */
+    getFile: (params) => session.request('get_file', params),
+
+    /**
      * Upload a file into a group. `file` accepts a path, an http url or a
      * `base64://` payload; `name` is what the group member sees.
      */

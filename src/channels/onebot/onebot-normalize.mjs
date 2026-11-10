@@ -70,7 +70,11 @@ function isSelfEcho(event, selfId) {
 export function oneBotFileSource(segment, { loadFile } = {}) {
   const data = segment?.data ?? {};
   const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : undefined;
-  if (url === undefined) return null;
+  // NapCat sends files with a file id and no url; `get_file` resolves it later.
+  const identifier = typeof data.file_id === 'string' && data.file_id.length > 0
+    ? data.file_id
+    : (typeof data.file === 'string' && data.file.length > 0 ? data.file : undefined);
+  if (url === undefined && identifier === undefined) return null;
   const declared = typeof data.file === 'string' && data.file.length > 0
     ? data.file
     : typeof data.name === 'string' && data.name.length > 0 ? data.name : undefined;
@@ -80,9 +84,11 @@ export function oneBotFileSource(segment, { loadFile } = {}) {
     name,
     ...(declaredMediaType ? { mediaType: declaredMediaType } : mediaTypeOf(name) ? { mediaType: mediaTypeOf(name) } : {}),
     size: Number.isFinite(Number(data.file_size)) ? Number(data.file_size) : undefined,
+    // The whole segment travels: a loader may need the file id when the url is
+    // absent, so it cannot be reduced to a url string here.
     load: (options) => {
       if (typeof loadFile !== 'function') throw new Error('OneBot file downloader is unavailable');
-      return loadFile(url, options);
+      return loadFile({ ...data, ...(url === undefined ? {} : { url }) }, options);
     },
   };
 }
