@@ -77,6 +77,7 @@ import {
   setLastMessageFailure,
 } from './message-failure.mjs';
 import { logDeliveryFailure } from './delivery-failure-log.mjs';
+import { appendFailureRecord, failureLogRecord } from './failure-log-file.mjs';
 import { beginStatusReaction } from './status-reaction.mjs';
 import { startNewConversation } from './new-command.mjs';
 
@@ -801,10 +802,15 @@ export class TextHarnessBridge {
       message.statusReaction?.error();
       this.#status.lastError = error?.message ?? String(error);
       const failure = setLastMessageFailure(this.#status, error);
+      const batchFailureDiagnostic = messageFailureDiagnostic(error, failure);
       this.#logger.error?.(
         `[dsh-im:${this.#descriptor.key}] failed to process a batch input message [${failure.referenceId}]:`,
-        messageFailureDiagnostic(error, failure),
+        batchFailureDiagnostic,
       );
+      // The reference id must survive a Desktop launch without stdout.
+      appendFailureRecord(failureLogRecord({
+        channel: this.#descriptor.key, failure, diagnostic: batchFailureDiagnostic,
+      }));
     }).finally(() => {
       this.#acceptedMessageIds.delete(messageId);
       this.#commandTasks.delete(task);
@@ -1056,10 +1062,14 @@ export class TextHarnessBridge {
       message.statusReaction?.error();
       this.#status.lastError = error?.message ?? String(error);
       const failure = setLastMessageFailure(this.#status, error);
+      const commandFailureDiagnostic = messageFailureDiagnostic(error, failure);
       this.#logger.error?.(
         `[dsh-im:${this.#descriptor.key}] failed to process a command [${failure.referenceId}]:`,
-        messageFailureDiagnostic(error, failure),
+        commandFailureDiagnostic,
       );
+      appendFailureRecord(failureLogRecord({
+        channel: this.#descriptor.key, failure, diagnostic: commandFailureDiagnostic,
+      }));
       await this.#bot.sendText(target, messageFailureText(failure)).catch(() => undefined);
     }
   }
@@ -1647,6 +1657,13 @@ export class TextHarnessBridge {
         `[dsh-im:${this.#descriptor.key}] failed to process a message [${failure.referenceId}]:`,
         messageFailureDiagnostic(error, failure),
       );
+      // One durable line per failure: the reference id a user quotes back must
+      // be greppable after a Desktop launch that captured no stdout.
+      appendFailureRecord(failureLogRecord({
+        channel: this.#descriptor.key,
+        failure,
+        diagnostic: messageFailureDiagnostic(error, failure),
+      }));
       // One line per failed or unconfirmed delivery, carrying the same id the
       // user will quote back: a reference id nobody can grep is useless.
       logDeliveryFailure(this.#logger, this.#descriptor.key, failure, error?.deliveryEvidence);
