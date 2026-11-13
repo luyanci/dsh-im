@@ -17,13 +17,15 @@ The fork always stays ahead of the upstream version: when upstream publishes a t
 next higher minor (upstream 5.11.0 → fork 5.12.0). That keeps `^x.y.z` ranges and update checks moving
 forward instead of treating a prerelease suffix as older.
 
-每个版本小节开头都注明它**基于哪个上游版本**，格式为 `> 基于上游 / Based on upstream: vX.Y.Z`，
-一行就够——版本号本身看上面那条规则，合并点看这一行。
+每个版本小节开头都注明它**基于哪个上游版本**：上游打了标签就写 `vX.Y.Z`，只合了未发布的 main 就写
+`main@<提交短号>` 并链到该提交。一行就够——版本号本身看上面那条规则，合并点看这一行。
 
-Every release section starts with a single line naming the upstream version it is based on:
-`> 基于上游 / Based on upstream: vX.Y.Z`.
+Every release section starts with a single line naming the upstream version it is based on: `vX.Y.Z` when upstream
+has tagged one, `main@<short sha>` linked to that commit when only unreleased main was merged.
 
-## [UNRELEASED]
+## [5.12.0] - 2026-11-13
+
+> 基于上游 / Based on upstream: main@[`fc2ceab`](https://github.com/xmanrui/dsh-im/commit/fc2ceab217309f8973afa03c58cdd8ff3e900130)
 
 ### Added / 新增
 
