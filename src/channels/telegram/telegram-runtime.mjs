@@ -1453,6 +1453,15 @@ export class TelegramBotClient {
     return result;
   }
 
+  /** Delete one of the bot's own messages (used by the /tail "Hide" button). */
+  async deleteMessage(target, messageId) {
+    return this.#api.deleteMessage({
+      chatId: target.chatId,
+      messageId: Number(messageId),
+      signal: this.#signal,
+    });
+  }
+
   async #deliverAnswer(target, messageId, block) {
     if (!this.#editFinalAnswer) {
       await this.#deletePlaceholder(target, messageId);
