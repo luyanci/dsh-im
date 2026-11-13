@@ -1,0 +1,17 @@
+# Normalize every text file to LF in the repository and in working trees.
+#
+# Two fork files (the shared bridge and the Telegram runtime) arrived on Windows
+# with CRLF line endings while upstream keeps LF, so a single upstream edit to
+# them produced a whole-file conflict instead of a small hunk. Declaring the
+# policy here keeps that from happening again; binary assets are detected
+# automatically and left alone.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.tgz binary
+*.zst binary
