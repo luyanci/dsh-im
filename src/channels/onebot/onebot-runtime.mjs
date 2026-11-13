@@ -23,6 +23,14 @@ import {
 const UNHANDLED_FRAME_LOG_WINDOW_MS = 10 * 60 * 1000;
 
 /**
+ * How long a failed image url suppresses further url attempts for the account.
+ * The rkey that signs those links is issued by the protocol end; when its rkey
+ * service is gone every link is dead, and probing each one costs a round trip
+ * before the same `get_image` fallback runs anyway.
+ */
+const IMAGE_URL_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
  * A path the protocol end put on this machine, or undefined for anything else:
  * an `image` segment may carry a cached file path where a url is expected.
  */
@@ -86,6 +94,13 @@ export class OneBotRuntime {
 
   /** `image` segment → bytes, by url or by `get_image` (see #downloadImage). */
   #loadInboundImage;
+
+  /**
+   * When an image url last failed for this account. The url is signed with an
+   * rkey that dies with the protocol end's rkey service — once that happens
+   * every link is dead, so retrying each image only costs a doomed request.
+   */
+  #imageUrlFailedAt = 0;
 
   #status;
 
@@ -301,11 +316,19 @@ export class OneBotRuntime {
     let lastError = null;
     const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
       ? data.url : undefined;
-    if (direct !== undefined) {
+    // A failure inside the cooldown window means the rkey source is still dead:
+    // skip the doomed request and go straight to get_image.
+    const cooling = Date.now() - this.#imageUrlFailedAt < IMAGE_URL_COOLDOWN_MS;
+    if (direct !== undefined && cooling) {
+      this.#logger?.info?.(
+        `[dsh-im:onebot] image url skipped for ${fileName}: a recent url download failed`,
+      );
+    } else if (direct !== undefined) {
       try {
         return via('segment-url', await this.#loadImage(direct, options));
       } catch (error) {
         lastError = error;
+        this.#imageUrlFailedAt = Date.now();
         this.#logger?.info?.(
           `[dsh-im:onebot] image url download failed for ${fileName}: ${error?.message ?? error}`,
         );

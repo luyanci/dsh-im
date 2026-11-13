@@ -188,6 +188,13 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
 
 ### Changed / 变更
 
+- OneBot 图片 url 下载失败后，同一账号在 **10 分钟内不再逐条重试 url**（记一行
+  `image url skipped for <文件名>: a recent url download failed`），直接走 `get_image` 的本地缓存。
+  NapCat 的 rkey 服务停掉后每条图片链接都是死的，逐条试只会白花一次往返。
+  After an image url download fails, that account stops retrying urls for **ten minutes** (logging
+  `image url skipped for <name>: a recent url download failed`) and goes straight to `get_image`'s cached bytes.
+  With NapCat's rkey service gone every image link is dead, so retrying each one only buys a wasted round trip.
+
 - OneBot 入站文件每次加载都会记一行「走的哪条路」：`inbound file via private-file-url / group-file-url / get-file-url /
   staged-path / base64 (文件名, N 字节)`；扩展接口被拒或返回的不是 http 链接也会各记一行。此前要回答「到底走没走
   get_*_file_url」只能靠猜。

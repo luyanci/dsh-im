@@ -341,3 +341,45 @@ test('an expired image url falls back to get_image', async (t) => {
   assert.match(logs.join('\n'), /image url download failed for 9C13BCDE82047B02D9CBB52AA12D64F4\.jpg/);
   assert.match(logs.join('\n'), /inbound image via get-image-base64/);
 });
+
+test('a failed image url is not retried for every image', async (t) => {
+  // With the rkey service gone every link is dead; probing each one wastes a
+  // round trip before the same get_image fallback runs.
+  const bridge = fakeBridge();
+  const logs = [];
+  let urlAttempts = 0;
+  const runtime = createOneBotRuntime({
+    config: runtimeConfig(),
+    harness,
+    state: fakeState(),
+    logger: { info: (line) => logs.push(String(line)), warn() {}, error() {} },
+    createBridge: () => bridge,
+    loadImage: async () => {
+      urlAttempts += 1;
+      throw new Error('OneBot media download failed with HTTP 400');
+    },
+    createApi: () => ({
+      getImage: async () => ({ base64: Buffer.from('STICKER').toString('base64') }),
+    }),
+  });
+  t.after(() => runtime.stop());
+  await runtime.start();
+  const ws = connect(runtime);
+  await once(ws, 'open');
+  t.after(() => ws.close());
+
+  ws.send(groupMessage([
+    { type: 'image', data: { file: 'first.jpg', url: 'https://gchat.qpic.cn/download?rkey=dead' } },
+    { type: 'image', data: { file: 'second.jpg', url: 'https://gchat.qpic.cn/download?rkey=dead' } },
+  ]));
+  for (let i = 0; i < 40 && bridge.accepted.length === 0; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const [message] = bridge.accepted;
+  assert.equal(message.images.length, 2);
+  for (const image of message.images) {
+    assert.equal(Buffer.from(await image.load({})).toString(), 'STICKER');
+  }
+  assert.equal(urlAttempts, 1, 'the second image skips the url it knows is dead');
+  assert.match(logs.join('\n'), /image url skipped for second\.jpg/);
+});
