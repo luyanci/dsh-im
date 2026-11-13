@@ -94,10 +94,13 @@ export function oneBotFileSource(segment, { loadFile, context } = {}) {
 }
 
 /**
- * Lazy image source: `load()` downloads the bytes from the signed url the event
- * carries. The url expires, so it is never stored beyond the closure.
+ * Lazy image source: `load()` resolves the bytes from the signed url the event
+ * carries, or — because that url carries an rkey that expires and NapCat's rkey
+ * service is often disabled — through the protocol end's `get_image`, a local
+ * cached path, or its base64 payload. The url is never stored beyond the
+ * closure.
  */
-export function oneBotImageSource(segment, { loadImage } = {}) {
+export function oneBotImageSource(segment, { loadImage, context } = {}) {
   const data = segment?.data ?? {};
   const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : undefined;
   const file = typeof data.file === 'string' && data.file.length > 0 ? data.file : undefined;
@@ -107,10 +110,11 @@ export function oneBotImageSource(segment, { loadImage } = {}) {
     name,
     mediaType: mediaTypeOf(name),
     size: undefined,
+    // The whole segment travels so the loader can retry with `get_image` when
+    // the url it was handed has already expired.
     load: (options) => {
-      if (url === undefined) throw new Error('OneBot image segment carries no download url');
       if (typeof loadImage !== 'function') throw new Error('OneBot image downloader is unavailable');
-      return loadImage(url, options);
+      return loadImage({ ...data, ...(url === undefined ? {} : { url }) }, options, context);
     },
   };
 }
@@ -324,7 +328,7 @@ export function normalizeOneBotEvent(event, {
     if (rendered.tagged === true) tagged = true;
     if (rendered.replyToId !== undefined) replyToId = rendered.replyToId;
     if (rendered.image !== undefined) {
-      const source = oneBotImageSource(rendered.image, { loadImage });
+      const source = oneBotImageSource(rendered.image, { loadImage, context: fileContext });
       if (source !== null) images.push(source);
     }
     if (rendered.file !== undefined) {

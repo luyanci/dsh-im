@@ -35,6 +35,10 @@ const getMsg = arg('get-msg', '')
 const getFile = arg('get-file', '')
 const getFileName = arg('get-file-name', '')
 const resolveFiles = args.includes('--resolve-files')
+// Any action, sent once per connection: answers "does this protocol end actually
+// implement X" without writing a throwaway script each time.
+const probeAction = arg('action', '')
+const probeParams = arg('params', '{}')
 
 const logFile = arg('log', '.onebot-probe.jsonl')
 const started = new Date().toISOString()
@@ -180,10 +184,21 @@ wss.on('connection', (ws, req) => {
     console.log(`[closed] code=${code}`)
   })
 
-  if (getMsg || sendText || getFile) {
+  if (getMsg || sendText || getFile || probeAction) {
     setTimeout(async () => {
       const info = await action(ws, 'get_login_info', {})
       console.log('[get_login_info]', JSON.stringify(info?.data ?? info))
+      if (probeAction) {
+        let params = {}
+        try {
+          params = JSON.parse(probeParams)
+        } catch (error) {
+          console.log('[action] params is not JSON:', error?.message ?? error)
+        }
+        const got = await action(ws, probeAction, params)
+        console.log(`[${probeAction}]`, JSON.stringify(got?.data ?? got).slice(0, 900))
+        record('action-probe', { action: probeAction, params, response: got?.data ?? got, status: got?.status })
+      }
       if (getFile) {
         // What a `file` segment looks like without a url: NapCat answers here.
         const got = await action(ws, 'get_file', { file_id: getFile, file: getFileName })

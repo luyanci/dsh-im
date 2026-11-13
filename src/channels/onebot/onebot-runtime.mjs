@@ -22,6 +22,15 @@ import {
 /** How often one unhandled frame kind may be named in the log. */
 const UNHANDLED_FRAME_LOG_WINDOW_MS = 10 * 60 * 1000;
 
+/**
+ * A path the protocol end put on this machine, or undefined for anything else:
+ * an `image` segment may carry a cached file path where a url is expected.
+ */
+function absolutePathOf(value) {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return /^(?:[A-Za-z]:[\\/]|\/)/u.test(value) ? value : undefined;
+}
+
 /** Convenience factory; the class stays exported for callers that subclass. */
 export function createOneBotRuntime(options) {
   return new OneBotRuntime(options);
@@ -75,6 +84,9 @@ export class OneBotRuntime {
   /** `file`/`file_id` → the bytes NapCat staged locally (see #loadFile). */
   #loadFile;
 
+  /** `image` segment → bytes, by url or by `get_image` (see #downloadImage). */
+  #loadInboundImage;
+
   #status;
 
   #server = null;
@@ -123,6 +135,7 @@ export class OneBotRuntime {
     // The conversation travels as the third argument: the url extensions need
     // it, and dropping it here is what made every load report ctx=none.
     this.#loadFile = (data, options, context) => this.#downloadFile(data, options, context);
+    this.#loadInboundImage = (data, options, context) => this.#downloadImage(data, options, context);
     this.#status = status;
   }
 
@@ -257,6 +270,86 @@ export class OneBotRuntime {
    * (which does carry an http url) arrived while every other file "exploded" at
    * prompt preparation. Resolve the id, then read whichever form comes back.
    */
+  /** Read a path the protocol end staged locally, honouring the size cap. */
+  async #readStaged(file, options = {}) {
+    const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+      ? options.maxBytes : undefined;
+    if (maxBytes !== undefined) {
+      const info = await stat(file);
+      if (info.size > maxBytes) throw new Error(`OneBot media is ${info.size} bytes; the limit is ${maxBytes}`);
+    }
+    return readFile(file);
+  }
+
+  /**
+   * Bytes for an inbound `image` segment.
+   *
+   * The url an image segment carries is signed with an rkey that expires, and
+   * NapCat's rkey service is frequently disabled — a sticker sent minutes ago
+   * then answers `{"retcode":-5503007,"retmsg":"download url has expired"}`. The
+   * image is still on disk, so `get_image` answers with that cached path and the
+   * base64 payload; either form feeds the turn. This is why a chat full of
+   * animated stickers used to fail with IMAGE_DOWNLOAD_FAILED.
+   */
+  async #downloadImage(data, options = {}, context = null) {
+    const fileName = typeof data?.file === 'string' && data.file ? data.file : 'image';
+    const via = (route, bytes) => {
+      const size = bytes?.data?.length ?? bytes?.length ?? '?';
+      this.#logger?.info?.(`[dsh-im:onebot] inbound image via ${route} (${fileName}, ${size} bytes)`);
+      return bytes;
+    };
+    let lastError = null;
+    const direct = typeof data?.url === 'string' && /^https?:\/\//i.test(data.url)
+      ? data.url : undefined;
+    if (direct !== undefined) {
+      try {
+        return via('segment-url', await this.#loadImage(direct, options));
+      } catch (error) {
+        lastError = error;
+        this.#logger?.info?.(
+          `[dsh-im:onebot] image url download failed for ${fileName}: ${error?.message ?? error}`,
+        );
+      }
+    }
+    // Some protocol ends inline an absolute path in `url` or `file`.
+    const inline = absolutePathOf(data?.file) ?? absolutePathOf(data?.url);
+    if (inline !== undefined) {
+      try {
+        return via('staged-path', await this.#readStaged(inline, options));
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    const session = this.#session;
+    const api = session === null || session === undefined ? null : this.#createApi(session);
+    if (api !== null && typeof data?.file === 'string' && data.file) {
+      try {
+        const resolved = await api.getImage({ file: data.file });
+        const staged = absolutePathOf(resolved?.file);
+        if (staged !== undefined) {
+          try {
+            return via('get-image-path', await this.#readStaged(staged, options));
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (typeof resolved?.base64 === 'string' && resolved.base64) {
+          const payload = resolved.base64.replace(/^base64:\/\//u, '');
+          return via('get-image-base64', Buffer.from(payload, 'base64'));
+        }
+      } catch (error) {
+        lastError = error;
+        this.#logger?.info?.(
+          `[dsh-im:onebot] get_image failed for ${fileName}: ${error?.message ?? error}`,
+        );
+      }
+    }
+    throw new Error(
+      `OneBot image ${fileName} could not be fetched`
+      + (lastError === null ? '' : `: ${lastError?.message ?? lastError}`),
+    );
+  }
+
   async #downloadFile(data, options = {}, context = null) {
     const fileName = typeof data?.file === 'string' && data.file ? data.file : 'file';
     const session = this.#session;
@@ -394,7 +487,7 @@ export class OneBotRuntime {
       message = normalizeOneBotEvent(frame, {
         selfId: this.#session?.selfId ?? this.#config.selfId,
         groupTriggers: this.#config.groupTriggers,
-        loadImage: this.#loadImage,
+        loadImage: this.#loadInboundImage,
         loadFile: this.#loadFile,
         loadReply: (messageId, options) => this.#loadReply(messageId, options),
       });

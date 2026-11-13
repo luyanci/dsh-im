@@ -127,6 +127,13 @@ export function createOneBotApi(session) {
     getFile: (params) => session.request('get_file', params),
 
     /**
+     * NapCat resolves an image segment to bytes even when the signed url in the
+     * event has expired: it answers with a local cached path, a base64 payload,
+     * and the (possibly dead) url.
+     */
+    getImage: (params) => session.request('get_image', params),
+
+    /**
      * NapCat extensions that turn a file id into a real http url (the standard
      * `get_file` answers with a staged local path). Both reject on protocol ends
      * that never implemented them, so callers fall back to `get_file`.

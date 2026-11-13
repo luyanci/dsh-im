@@ -269,19 +269,31 @@ test('a private message is always addressed and keys on the user', () => {
   assert.deepEqual(message.replyTarget, { userId: String(USER_ID) });
 });
 
-test('an image segment downloads lazily from its signed url', async () => {
+test('an image segment downloads lazily with its whole segment', async () => {
   const seen = [];
   const message = normalize(groupEvent([
     { type: 'image', data: { file: 'DD49F613B75F3BC701B2E1D6A1FB4FCD.jpg', url: 'https://multimedia.nt.qq.com.cn/download?x=1' } },
   ]), {
-    loadImage: async (url) => { seen.push(url); return Buffer.from('bytes'); },
+    // The loader gets the segment, not just the url: when the url has expired it
+    // retries through get_image with `file`.
+    loadImage: async (data) => { seen.push(data); return Buffer.from('bytes'); },
   });
   assert.equal(message.images.length, 1);
   const [image] = message.images;
   assert.equal(image.name, 'DD49F613B75F3BC701B2E1D6A1FB4FCD.jpg');
   assert.equal(image.mediaType, 'image/jpeg');
   assert.deepEqual(await image.load({}), Buffer.from('bytes'));
-  assert.deepEqual(seen, ['https://multimedia.nt.qq.com.cn/download?x=1']);
+  assert.equal(seen[0].url, 'https://multimedia.nt.qq.com.cn/download?x=1');
+  assert.equal(seen[0].file, 'DD49F613B75F3BC701B2E1D6A1FB4FCD.jpg');
+});
+
+test('an image with no url stays loadable so get_image can resolve it', async () => {
+  // NapCat hands a sticker's file name only; the bytes come from get_image.
+  const message = normalize(groupEvent([
+    { type: 'image', data: { file: '9C13BCDE82047B02D9CBB52AA12D64F4.jpg' } },
+  ]), { loadImage: async (data) => Buffer.from(`got:${data.file}`) });
+  assert.equal(message.images.length, 1);
+  assert.equal(String(await message.images[0].load({})), 'got:9C13BCDE82047B02D9CBB52AA12D64F4.jpg');
 });
 
 test('self echoes are dropped before anything else happens', () => {

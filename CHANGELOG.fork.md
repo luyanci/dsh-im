@@ -77,6 +77,17 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
 
 ### Fixed / 修复
 
+- 表情连发时 QQ 群里一片「图片下载失败，请重新发送后再试。」（`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`）：NapCat 的图片
+  段带的是签名 url，里面的 rkey 会过期——它的 rkey 服务一旦不可用（日志里的 `[Rkey] 所有服务均已禁用`），刚发表的情
+  也会返回 `{"retcode":-5503007,"retmsg":"download url has expired"}`。图片其实就在本地缓存里，现在 url 下载失败后
+  自动走 `get_image`：读到本地缓存路径或 `base64` 都行，并记一行
+  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`。
+  Sticker spam in QQ groups answered every message with "图片下载失败" (`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`): the
+  image segment's url is signed with an rkey that expires, and once NapCat's rkey service is unavailable
+  (`[Rkey] 所有服务均已禁用` in its log) even a sticker sent seconds ago answers
+  `{"retcode":-5503007,"retmsg":"download url has expired"}`. The bytes are still cached locally, so a failed url
+  download now falls back to `get_image`, accepting either its cached path or its base64 payload, and each load logs
+  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`.
 - NapCat 的 `get_private_file_url` / `get_group_file_url` 一开始**根本没被调用**：加载器的包装函数把第三个参数
   （会话上下文）吞了，于是每次加载都是 `ctx=none`，扩展接口因缺少 `user_id`/`group_id` 被跳过，只能退回本地路径。
   现已透传上下文，文件加载日志里的 `id=/ctx=` 正好能看出这一层。这条日志本身也是为定位它加的。

@@ -296,3 +296,48 @@ test('the runtime status starts from the shared bridge counters', () => {
   assert.equal(status.ready, false);
   assert.equal(status.listening, false);
 });
+
+test('an expired image url falls back to get_image', async (t) => {
+  // A sticker whose rkey died: the url answers 400 "download url has expired",
+  // NapCat still has the bytes and returns them as base64.
+  const bridge = fakeBridge();
+  const logs = [];
+  const runtime = createOneBotRuntime({
+    config: runtimeConfig(),
+    harness,
+    state: fakeState(),
+    logger: { info: (line) => logs.push(String(line)), warn() {}, error() {} },
+    createBridge: () => bridge,
+    loadImage: async () => {
+      throw new Error('OneBot media download failed with HTTP 400');
+    },
+    createApi: () => ({
+      getImage: async ({ file }) => ({
+        // A path that does not exist here forces the base64 branch.
+        file: 'C:\\nowhere\\sticker.jpg',
+        file_name: file,
+        base64: Buffer.from('IMAGE-BYTES').toString('base64'),
+      }),
+    }),
+  });
+  t.after(() => runtime.stop());
+  await runtime.start();
+  const ws = connect(runtime);
+  await once(ws, 'open');
+  t.after(() => ws.close());
+
+  ws.send(groupMessage([
+    {
+      type: 'image',
+      data: { file: '9C13BCDE82047B02D9CBB52AA12D64F4.jpg', url: 'https://gchat.qpic.cn/download?rkey=dead' },
+    },
+  ]));
+  for (let i = 0; i < 40 && bridge.accepted.length === 0; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.equal(bridge.accepted.length, 1);
+  const bytes = await bridge.accepted[0].images[0].load({ maxBytes: 1024 });
+  assert.equal(Buffer.from(bytes).toString(), 'IMAGE-BYTES');
+  assert.match(logs.join('\n'), /image url download failed for 9C13BCDE82047B02D9CBB52AA12D64F4\.jpg/);
+  assert.match(logs.join('\n'), /inbound image via get-image-base64/);
+});
