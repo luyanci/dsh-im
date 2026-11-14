@@ -23,6 +23,33 @@ forward instead of treating a prerelease suffix as older.
 Every release section starts with a single line naming the upstream version it is based on: `vX.Y.Z` when upstream
 has tagged one, `main@<short sha>` linked to that commit when only unreleased main was merged.
 
+## [UNRELEASED]
+
+> 基于上游 / Based on upstream: main@[`fc2ceab`](https://github.com/xmanrui/dsh-im/commit/fc2ceab217309f8973afa03c58cdd8ff3e900130)（与 5.12.0 同一基线）
+
+### Fixed / 修复
+
+- 表情连发时 QQ 群里一片「图片下载失败，请重新发送后再试。」（`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`）：NapCat 的图片
+  段带的是签名 url，里面的 rkey 会过期——它的 rkey 服务一旦不可用（日志里的 `[Rkey] 所有服务均已禁用`），刚发表的情
+  也会返回 `{"retcode":-5503007,"retmsg":"download url has expired"}`。图片其实就在本地缓存里，现在 url 下载失败后
+  自动走 `get_image`：读到本地缓存路径或 `base64` 都行，并记一行
+  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`。
+  Sticker spam in QQ groups answered every message with "图片下载失败" (`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`): the
+  image segment's url is signed with an rkey that expires, and once NapCat's rkey service is unavailable
+  (`[Rkey] 所有服务均已禁用` in its log) even a sticker sent seconds ago answers
+  `{"retcode":-5503007,"retmsg":"download url has expired"}`. The bytes are still cached locally, so a failed url
+  download now falls back to `get_image`, accepting either its cached path or its base64 payload, and each load logs
+  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`.
+
+### Changed / 变更
+
+- OneBot 图片 url 下载失败后，同一账号在 **10 分钟内不再逐条重试 url**（记一行
+  `image url skipped for <文件名>: a recent url download failed`），直接走 `get_image` 的本地缓存。
+  NapCat 的 rkey 服务停掉后每条图片链接都是死的，逐条试只会白花一次往返。
+  After an image url download fails, that account stops retrying urls for **ten minutes** (logging
+  `image url skipped for <name>: a recent url download failed`) and goes straight to `get_image`'s cached bytes.
+  With NapCat's rkey service gone every image link is dead, so retrying each one only buys a wasted round trip.
+
 ## [5.12.0] - 2026-11-13
 
 > 基于上游 / Based on upstream: main@[`fc2ceab`](https://github.com/xmanrui/dsh-im/commit/fc2ceab217309f8973afa03c58cdd8ff3e900130)
@@ -77,17 +104,6 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
 
 ### Fixed / 修复
 
-- 表情连发时 QQ 群里一片「图片下载失败，请重新发送后再试。」（`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`）：NapCat 的图片
-  段带的是签名 url，里面的 rkey 会过期——它的 rkey 服务一旦不可用（日志里的 `[Rkey] 所有服务均已禁用`），刚发表的情
-  也会返回 `{"retcode":-5503007,"retmsg":"download url has expired"}`。图片其实就在本地缓存里，现在 url 下载失败后
-  自动走 `get_image`：读到本地缓存路径或 `base64` 都行，并记一行
-  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`。
-  Sticker spam in QQ groups answered every message with "图片下载失败" (`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`): the
-  image segment's url is signed with an rkey that expires, and once NapCat's rkey service is unavailable
-  (`[Rkey] 所有服务均已禁用` in its log) even a sticker sent seconds ago answers
-  `{"retcode":-5503007,"retmsg":"download url has expired"}`. The bytes are still cached locally, so a failed url
-  download now falls back to `get_image`, accepting either its cached path or its base64 payload, and each load logs
-  `inbound image via segment-url / staged-path / get-image-path / get-image-base64`.
 - NapCat 的 `get_private_file_url` / `get_group_file_url` 一开始**根本没被调用**：加载器的包装函数把第三个参数
   （会话上下文）吞了，于是每次加载都是 `ctx=none`，扩展接口因缺少 `user_id`/`group_id` 被跳过，只能退回本地路径。
   现已透传上下文，文件加载日志里的 `id=/ctx=` 正好能看出这一层。这条日志本身也是为定位它加的。
@@ -187,13 +203,6 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
   fallback. OneBot never creates a placeholder, so nothing changes there. (`071ccdbe`)
 
 ### Changed / 变更
-
-- OneBot 图片 url 下载失败后，同一账号在 **10 分钟内不再逐条重试 url**（记一行
-  `image url skipped for <文件名>: a recent url download failed`），直接走 `get_image` 的本地缓存。
-  NapCat 的 rkey 服务停掉后每条图片链接都是死的，逐条试只会白花一次往返。
-  After an image url download fails, that account stops retrying urls for **ten minutes** (logging
-  `image url skipped for <name>: a recent url download failed`) and goes straight to `get_image`'s cached bytes.
-  With NapCat's rkey service gone every image link is dead, so retrying each one only buys a wasted round trip.
 
 - OneBot 入站文件每次加载都会记一行「走的哪条路」：`inbound file via private-file-url / group-file-url / get-file-url /
   staged-path / base64 (文件名, N 字节)`；扩展接口被拒或返回的不是 http 链接也会各记一行。此前要回答「到底走没走
