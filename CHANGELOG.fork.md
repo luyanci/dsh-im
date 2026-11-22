@@ -23,7 +23,7 @@ forward instead of treating a prerelease suffix as older.
 Every release section starts with a single line naming the upstream version it is based on: `vX.Y.Z` when upstream
 has tagged one, `main@<short sha>` linked to that commit when only unreleased main was merged.
 
-## [UNRELEASED]
+## [5.12.1] - 2026-11-22
 
 > 基于上游 / Based on upstream: main@[`0694642e`](https://github.com/xmanrui/dsh-im/commit/0694642e)（含 #593、#602 两个上游未合并 PR 的改动）
 
