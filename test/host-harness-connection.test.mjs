@@ -14,15 +14,25 @@ function modernContext(extra = {}) {
   return Object.defineProperties({ typertGateway: { invoke() {}, stream() {} }, on() {} }, Object.getOwnPropertyDescriptors(extra));
 }
 
-test('Host connections use the modern gateway and share the current Cordis root', () => {
+test('Host connections use the modern gateway and share the Cordis root symbol', () => {
+  // cordis 4.1 exposes the root only under Symbol.for('cordis.root'); the plugin
+  // reads that key, so the scope is the root the host published there.
+  const ROOT = Symbol.for('cordis.root');
   const root = {};
-  const ctx = modernContext({ root, get apiProxy() { throw new Error('legacy service must not be read'); } });
+  const ctx = modernContext({
+    [ROOT]: root,
+    get apiProxy() { throw new Error('legacy service must not be read'); },
+  });
   const first = harnessConnection(ctx);
-  const second = harnessConnection(modernContext({ root }));
+  const second = harnessConnection(modernContext({ [ROOT]: root }));
   assert.equal(first.apiProxy, second.apiProxy);
   assert.equal(first.interactionScope, root);
   assert.equal(first.competitiveApprovals, false);
-  assert.notEqual(first.interactionScope, harnessConnection(modernContext({ root: {} })).interactionScope);
+  assert.notEqual(first.interactionScope, harnessConnection(modernContext({ [ROOT]: {} })).interactionScope);
+  // A plain `root` property is exactly what the newer cordis removed; a context
+  // that only has that falls back to itself instead of throwing.
+  const legacy = modernContext({ root });
+  assert.equal(harnessConnection(legacy).interactionScope, legacy);
   const fixtureContext = modernContext();
   assert.equal(harnessConnection(fixtureContext).interactionScope, fixtureContext);
   assert.throws(() => harnessConnection({ apiProxy: {} }), /requires the modern Host Typert gateway/);
@@ -123,7 +133,7 @@ async function assembledHarness(channel, ctx, config = {}, inspect) {
 for (const channel of [...IM_CHANNELS, 'office']) {
   test(`${channel} production uses the modern Host gateway with no webServer or listening port`, async () => {
     const root = {};
-    const ctx = modernContext({ credentials: {}, root });
+    const ctx = modernContext({ credentials: {}, [Symbol.for('cordis.root')]: root });
     const options = await assembledHarness(channel, ctx);
     assert.equal(options.apiProxy, harnessConnection(ctx).apiProxy);
     assert.equal(options.competitiveApprovals, !['imessage', 'email', 'office'].includes(channel));

@@ -48,6 +48,9 @@ function fakeContext(gateway) {
   const root = {};
   const ctx = {
     root,
+    // cordis 4.1 exposes the root only under this symbol; the plugin reads the
+    // symbol so the same code works on older and newer hosts.
+    [Symbol.for('cordis.root')]: root,
     typertGateway: gateway,
     on(event, listener) {
       const entries = listeners.get(event) ?? [];
@@ -387,7 +390,7 @@ test('modern adapter maps the narrow legacy API without changing HarnessClient',
   const first = harnessConnection(ctx);
   const second = harnessConnection(ctx);
   assert.equal(first.apiProxy, second.apiProxy);
-  assert.equal(first.interactionScope, ctx.root);
+  assert.equal(first.interactionScope, ctx[Symbol.for('cordis.root')]);
 
   const workspace = await first.apiProxy.workspace.list({ rpcId: 'workspace-list', payload: {} });
   assert.equal(workspace.result.value.items[0].path, '/workspace');

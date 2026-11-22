@@ -28,8 +28,12 @@ function fixture() {
     assert.ok(request.signal instanceof AbortSignal);
     calls.push(request);
   }
+  const root = {};
   const ctx = {
-    root: {},
+    root,
+    // A symbol-keyed own property survives object spread, so `{ ...ctx }` (a
+    // second channel) keeps sharing this scope the way the host does.
+    [Symbol.for('cordis.root')]: root,
     connection: { createPeer(options) { created.push(options); return peer; } },
     typertGateway: {
       async invoke(request) {

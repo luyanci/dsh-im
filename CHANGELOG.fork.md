@@ -25,10 +25,24 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
 
 ## [UNRELEASED]
 
-> 基于上游 / Based on upstream: main@[`fc2ceab`](https://github.com/xmanrui/dsh-im/commit/fc2ceab217309f8973afa03c58cdd8ff3e900130)（与 5.12.0 同一基线）
+> 基于上游 / Based on upstream: main@[`0694642e`](https://github.com/xmanrui/dsh-im/commit/0694642e)（含 #593、#602 两个上游未合并 PR 的改动）
 
 ### Fixed / 修复
 
+- DSH 0.2.2 下客户端半区不注册任何 UI 入口（侧栏没有「IM机器人」、设置里也没有该页，宿主侧却是「运行中」）：
+  `dsh.client.inject` 仍引用 0.2.2 已移除的 `@deepseek-ai/dsh-client-runtime` 与 `dsh-client-ui-slots`。现改用
+  `dsh-client-modules` / `dsh-client-ui-renderer`，并补上 `dsh-client-ui-workspace` 与 `dsh-api-remotes`（上游 PR #593）。
+  On DSH 0.2.2 the client half registered no UI at all (no sidebar entry, no settings page, while the host reported
+  "running"): `dsh.client.inject` still named `@deepseek-ai/dsh-client-runtime` and `dsh-client-ui-slots`, both removed
+  in 0.2.2. It now injects `dsh-client-modules` / `dsh-client-ui-renderer`, plus `dsh-client-ui-workspace` and
+  `dsh-api-remotes` (upstream PR #593).
+- DSH 0.2.2 / cordis 4.1 上所有渠道启动即失败（`cannot get property "root" without inject`）：根上下文只暴露在
+  `Symbol.for('cordis.root')` 下，旧的 `ctx.root` 读取会被当成未注入服务直接抛错。五处宿主代码改为读符号键并保留
+  回落到当前上下文；测试桩同步补上该符号（上游 PR #602，修 #607 / #616）。
+  On DSH 0.2.2 / cordis 4.1 every channel failed at startup with `cannot get property "root" without inject`: the
+  root context is exposed only under `Symbol.for('cordis.root')`, so reading `ctx.root` resolves as an uninjected
+  service and throws. Five host sites read the symbol now, keeping the fallback to the current context; the test
+  doubles publish the symbol too (upstream PR #602, fixes #607 / #616).
 - 表情连发时 QQ 群里一片「图片下载失败，请重新发送后再试。」（`INPUT_INVALID` / `IMAGE_DOWNLOAD_FAILED`）：NapCat 的图片
   段带的是签名 url，里面的 rkey 会过期——它的 rkey 服务一旦不可用（日志里的 `[Rkey] 所有服务均已禁用`），刚发表的情
   也会返回 `{"retcode":-5503007,"retmsg":"download url has expired"}`。图片其实就在本地缓存里，现在 url 下载失败后
@@ -43,6 +57,11 @@ has tagged one, `main@<short sha>` linked to that commit when only unreleased ma
 
 ### Changed / 变更
 
+- 兼容性声明跟进 DSH 0.2.2：`dsh.compatibility.dsh` 由 `0.2.1-rc.2` 升到 `0.2.2-rc.1`（本机实测版本），
+  `dshReleases` 补上 `0.2.2-rc.1`～`rc.5`，`engines.dsh` 声明为 `>=0.2.2-rc.1 <0.3.0`。
+  Compatibility now follows DSH 0.2.2: `dsh.compatibility.dsh` moves from `0.2.1-rc.2` to `0.2.2-rc.1` (the version
+  this fork was tested on), `dshReleases` lists `0.2.2-rc.1` through `rc.5`, and `engines.dsh` is
+  `>=0.2.2-rc.1 <0.3.0`.
 - OneBot 图片 url 下载失败后，同一账号在 **10 分钟内不再逐条重试 url**（记一行
   `image url skipped for <文件名>: a recent url download failed`），直接走 `get_image` 的本地缓存。
   NapCat 的 rkey 服务停掉后每条图片链接都是死的，逐条试只会白花一次往返。
