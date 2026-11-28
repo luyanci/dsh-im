@@ -22,6 +22,9 @@ import {
   COMMAND_PERMISSION_DENIED_MESSAGE,
   directAccessPolicy,
 } from '../access-policy-fixture.mjs';
+import { keepEventLoopAlive } from '../../helpers/loop-keeper.mjs';
+
+keepEventLoopAlive();
 
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',

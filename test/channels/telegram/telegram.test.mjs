@@ -44,6 +44,9 @@ import {
   TELEGRAM_ENDPOINTS,
   createTelegramRpcHandler,
 } from '../../../plugin-src/host/channels/telegram/rpc.mjs';
+import { keepEventLoopAlive } from '../../helpers/loop-keeper.mjs';
+
+keepEventLoopAlive();
 
 const TOKEN = '123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef123456';
 
