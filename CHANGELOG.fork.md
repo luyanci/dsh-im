@@ -23,6 +23,40 @@ forward instead of treating a prerelease suffix as older.
 Every release section starts with a single line naming the upstream version it is based on: `vX.Y.Z` when upstream
 has tagged one, `main@<short sha>` linked to that commit when only unreleased main was merged.
 
+## [5.12.2] - 2026-11-28
+
+> 基于上游 / Based on upstream: main@[`6d49cfe6`](https://github.com/xmanrui/dsh-im/commit/6d49cfe6)（上游 5.11.0 的发布准备提交已合入，正式 tag 尚未推出）
+
+### Added / 新增
+
+- 合入上游「投递内容」开关：每个 bot 的通用设置里可分别关掉**过程正文**、**工具步骤**、**思考过程**，只保留最终回答；
+  三项共用一条映射模板，默认全开，配置存在共享的每-bot 设置文档里（上游 #633）。
+  Merged upstream's 「投递内容」 switches: each bot's general settings can turn off **narration**, **tool steps** and
+  **thinking** independently, leaving only the final answer. The three share one mapped template, default to on, and
+  are stored in the shared per-bot settings document (upstream #633).
+- 合入上游 DSH 0.2.2-rc.5 适配：`client.inject` 改为 `dsh-client-locale` / `ui-renderer` / `ui-settings` /
+  `ui-workspace`（`dsh-client-runtime` 自 0.1.1-rc.2 起不再发布，`ui-slots` 是没有 client 入口的插槽核心），
+  `dsh.compatibility.dsh` 基线升到 `0.2.2-rc.5`（上游 #627）。本 fork 的基线声明与注入清单已与之对齐。
+  Merged upstream's DSH 0.2.2-rc.5 adaptation: `client.inject` now names `dsh-client-locale` / `ui-renderer` /
+  `ui-settings` / `ui-workspace` (`dsh-client-runtime` stopped publishing after 0.1.1-rc.2 and `ui-slots` is the slot
+  registry core without a client entry), with `dsh.compatibility.dsh` at `0.2.2-rc.5` (upstream #627). This fork's
+  baseline declaration and inject list match it.
+
+### Fixed / 修复
+
+- 合入上游 #640：内容安全类拒绝不再落到笼统的 `INTERNAL_UNKNOWN`，而是归类为 `MODEL_CONTENT_REJECTED`，
+  用户看到的参考号仍可对照 `failures.jsonl` 里的同一条记录。
+  Merged upstream #640: content-safety refusals are classified as `MODEL_CONTENT_REJECTED` instead of the generic
+  `INTERNAL_UNKNOWN`, so the reference id a user sees still matches the same line in `failures.jsonl`.
+- 合并后产物未重建会静默发布旧代码：CI 现在在 `lib/` 与源码不一致时直接失败（上游 `6d49cfe6`）。
+  A merge that left the committed bundles behind used to publish stale code silently; CI now fails when `lib/` does
+  not match the sources (upstream `6d49cfe6`).
+- `scripts/verify-package.mjs` 的「可勾选输入白名单」跟上了新增的「投递内容」面板：通用设置现在是 2 个 switch /
+  2 个 checkbox 模板，打包产物是 4 个 switch / 10 个 checkbox。这类断言写死了模板数量，新增一行开关就必须同步。
+  The checkable-input allowlist in `scripts/verify-package.mjs` now counts the new 「投递内容」 panel: general settings
+  carries two switch and two checkbox templates, and the bundle four switches and ten checkboxes. These assertions pin
+  template counts, so every new switch row has to update them.
+
 ## [5.12.1] - 2026-11-22
 
 > 基于上游 / Based on upstream: main@[`0694642e`](https://github.com/xmanrui/dsh-im/commit/0694642e)（含 #593、#602 两个上游未合并 PR 的改动）
