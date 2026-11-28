@@ -85,24 +85,18 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-modules",
-        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-workspace",
-        "@deepseek-ai/dsh-api-remotes",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ],
       "platform": "web"
     },
     "compatibility": {
-      "dsh": "0.2.2-rc.1",
+      "dsh": "0.2.2-rc.5",
       "dshReleases": {
         "0.2.0-rc.2": "compatible",
         "0.2.1-rc.2": "compatible",
-        "0.2.2-rc.1": "compatible",
-        "0.2.2-rc.2": "compatible",
-        "0.2.2-rc.3": "compatible",
-        "0.2.2-rc.4": "compatible",
         "0.2.2-rc.5": "compatible"
       },
       "profiles": [
